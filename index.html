@@ -506,7 +506,9 @@
             playbackTimerInterval: null,
             playbackTime: 0,
             audioCurrentTime: 0,
-            audioDuration: 0
+            audioDuration: 0,
+            isDownloading: false, // 是否正在下载
+            lastDownloadTime: null // 上次下载时间
         };
 
         // ==================== DOM元素 ====================
@@ -532,6 +534,7 @@
         // ==================== 初始化应用 ====================
         function initApp() {
             console.log('初始化应用...');
+            updateWaveform()
             
             // 检查音频兼容性
             checkAudioCompatibility();
@@ -558,11 +561,12 @@
             setupEventListeners();
             
             // 6. 默认选中第一个句子
-            if (AppState.sentences.length > 0) {
-                selectSentence(AppState.sentences[0]);
-            }
+            // if (AppState.sentences.length > 0) {
+            //     selectSentence(AppState.sentences[0]);
+            // }
             
-            showStatus('系统已就绪，可以开始录音', 'success');
+            //showStatus('系统已就绪，可以开始录音', 'success');
+            showStatus('加载中...', 'info');
             
             // 7. 在页面完全加载后，异步检查服务器状态
             setTimeout(() => {
@@ -588,7 +592,7 @@
             
             // 日期选择器标签
             const label = document.createElement('label');
-            label.textContent = '📅 选择日期：';
+            label.textContent = '📅 选择日期:';
             label.style.fontWeight = 'bold';
             label.style.color = '#333';
             
@@ -776,10 +780,10 @@
         // 在 checkServerFilesInBackground 函数中，修改这部分：
         async function checkServerFilesInBackground() {
             console.log(`开始在后台检查 ${AppState.selectedDate} 的服务器状态...`);
-            showStatus('正在检查服务器文件状态...', 'info');
+            //showStatus('正在检查服务器文件状态...', 'info');
             
             // 立即显示一个固定的进度提示
-            showStatus(`正在检查 ${AppState.selectedDate} 的服务器文件...`, 'info');
+            //showStatus(`正在检查 ${AppState.selectedDate} 的服务器文件...`, 'info');
             
             try {
                 let updatedCount = 0;
@@ -828,12 +832,12 @@
                 if (updatedCount > 0) {
                     showStatus(`发现 ${updatedCount} 个已上传文件`, 'success');
                 } else {
-                    showStatus('服务器状态检查完成', 'success');
+                    showStatus('加载完成', 'success');
                 }
                 
             } catch (error) {
                 console.error('后台检查出错:', error);
-                showStatus('服务器状态检查失败', 'error');
+                showStatus('加载失败', 'error');
             }
         }
 
@@ -1051,7 +1055,164 @@
             console.log('句子列表渲染完成');
         }
 
-        // 在selectSentence中也需要确保data属性正确
+        // ==================== 新增自动准备播放函数 ====================
+        async function autoPreparePlayback(sentenceId) {
+            console.log('自动准备播放已上传的句子:', sentenceId);
+            
+            //showStatus('正在从服务器下载音频...', 'info');
+            
+            try {
+                // 重要：对于已上传的句子，总是从GitHub下载最新版本
+                const audioBlob = await downloadAudioFromGitHub(sentenceId);
+                
+                if (audioBlob) {
+                    // 设置音频blob（覆盖内存中的任何旧版本）
+                    AppState.audioBlob = audioBlob;
+                    
+                    // 同时更新本地缓存
+                    cacheAudioToLocal(sentenceId, audioBlob);
+                    
+                    // 启用播放按钮
+                    elements.playBtn.disabled = false;
+                    elements.uploadBtn.disabled = false;
+                    elements.uploadBtn.textContent = '📤 重新上传';
+                    
+                    console.log('已从服务器下载最新音频，准备播放');
+                    //showStatus('自动播放...', 'success');
+                    
+                    // 重要：立即自动播放！
+                    setTimeout(() => {
+                        playRecording();
+                    }, 300);
+                } else {
+                    console.log('无法从服务器下载，检查本地是否有旧版本');
+                    checkExistingRecording(sentence.id ,autoPlay = true);
+                    
+                    // 如果有本地版本，播放它
+                    if (AppState.audioBlob) {
+                        setTimeout(() => {
+                            playRecording();
+                        }, 300);
+                    }
+                }
+            } catch (error) {
+                console.error('准备播放失败:', error);
+                showStatus('从服务器下载失败，尝试本地播放', 'error');
+                
+                // 降级到检查本地录音
+                checkExistingRecording(sentenceId);
+                
+                // 如果有本地版本，播放它
+                if (AppState.audioBlob) {
+                    setTimeout(() => {
+                        playRecording();
+                    }, 500);
+                }
+            }
+        }
+
+        // ==================== 新增从GitHub下载音频函数 ====================
+        async function downloadAudioFromGitHub(sentenceId) {
+            console.log('从GitHub下载最新音频:', sentenceId);
+            
+            // 使用选择日期的路径
+            const fileName = `${AppState.selectedDate}_${sentenceId}.wav`;
+            const filePath = `recordings/${AppState.selectedDate}/${fileName}`;
+            
+            try {
+                // 方法1：使用GitHub raw URL（最可靠）
+                const rawUrl = `https://raw.githubusercontent.com/${AppState.config.REPOSITORY}/main/${filePath}`;
+                
+                console.log('使用raw URL下载最新音频:', rawUrl);
+                
+                const response = await fetch(rawUrl, {
+                    method: 'GET',
+                    mode: 'cors',
+                    cache: 'no-store', // 不使用缓存，确保获取最新版本
+                    headers: {
+                        'Accept': 'audio/wav, audio/*'
+                    },
+                    signal: AbortSignal.timeout(10000) // 10秒超时
+                });
+                
+                if (response.ok) {
+                    const audioBlob = await response.blob();
+                    
+                    // 验证音频文件
+                    if (audioBlob && audioBlob.size > 0) {
+                        console.log('✅ 从GitHub下载音频成功，大小:', audioBlob.size, 'bytes');
+                        
+                        // 确保MIME类型正确
+                        let finalBlob = audioBlob;
+                        if (!audioBlob.type.includes('audio')) {
+                            console.log('⚠️ 文件MIME类型不是音频，修复为audio/wav');
+                            finalBlob = new Blob([audioBlob], { type: 'audio/wav' });
+                        }
+                        
+                        return finalBlob;
+                    } else {
+                        console.warn('❌ 下载的音频文件为空');
+                        return null;
+                    }
+                } else {
+                    console.warn(`❌ 无法下载文件，状态码: ${response.status}`);
+                    
+                    // 备用方法：尝试使用GitHub API
+                    console.log('尝试备用下载方法...');
+                    return await downloadViaGitHubAPI(filePath);
+                }
+            } catch (error) {
+                console.error('❌ 从GitHub下载音频失败:', error);
+                return null;
+            }
+        }
+
+        // 备用下载方法：通过GitHub API
+        async function downloadViaGitHubAPI(filePath) {
+            try {
+                const response = await fetch(
+                    `https://api.github.com/repos/${AppState.config.REPOSITORY}/contents/${filePath}`,
+                    {
+                        method: 'GET',
+                        headers: {
+                            'Authorization': `token ${AppState.config.TOKEN}`,
+                            'Accept': 'application/vnd.github.v3.raw'
+                        },
+                        signal: AbortSignal.timeout(8000)
+                    }
+                );
+                
+                if (response.ok) {
+                    const audioBlob = await response.blob();
+                    if (audioBlob && audioBlob.size > 0) {
+                        console.log('✅ 通过GitHub API下载成功');
+                        return new Blob([audioBlob], { type: 'audio/wav' });
+                    }
+                }
+                return null;
+            } catch (error) {
+                console.error('GitHub API下载也失败:', error);
+                return null;
+            }
+        }
+        // ==================== 新增音频缓存函数 ====================
+        function cacheAudioToLocal(sentenceId, audioBlob) {
+            try {
+                const audioKey = `audio_${AppState.selectedDate}_${sentenceId}`;
+                const reader = new FileReader();
+                
+                reader.onload = () => {
+                    localStorage.setItem(audioKey, reader.result);
+                    console.log('音频已缓存到本地存储:', audioKey);
+                };
+                
+                reader.readAsDataURL(audioBlob);
+            } catch (error) {
+                console.warn('音频缓存失败:', error);
+            }
+        }
+
+
         function selectSentence(sentence) {
             console.log('选择句子:', sentence.id);
             
@@ -1060,54 +1221,133 @@
                 return;
             }
             
+            // 如果选择的是同一个句子，不要重复操作
+            if (AppState.currentSentence && AppState.currentSentence.id === sentence.id) {
+                console.log('重复选择同一个句子，跳过');
+                return;
+            }
+            
+            // ==================== 重置所有状态 ====================
+            
+            // 1. 停止正在播放的音频
+            if (AppState.isPlaying) {
+                console.log('切换句子，停止当前播放');
+                stopPlayback();
+            }
+            
+            // 2. 停止录音计时器（如果正在录音）
+            if (AppState.timerInterval) {
+                clearInterval(AppState.timerInterval);
+                AppState.timerInterval = null;
+            }
+            
+            // 3. 停止播放计时器
+            if (AppState.playbackTimerInterval) {
+                clearInterval(AppState.playbackTimerInterval);
+                AppState.playbackTimerInterval = null;
+            }
+            
+            // 4. 重置录音时间
+            AppState.recordingTime = 0;
+            
+            // 5. 重置播放时间
+            AppState.playbackTime = 0;
+            AppState.audioCurrentTime = 0;
+            AppState.audioDuration = 0;
+            
+            // 6. 重置波形显示
+            // elements.waveform.innerHTML = '';
+            
+            // 7. 更新状态变量
             AppState.currentSentence = sentence;
-            AppState.audioBlob = null;
+            AppState.audioBlob = null; // 重置音频blob
             
-            // 停止正在进行的操作
-            if (AppState.isPlaying) stopPlayback();
-            if (AppState.timerInterval) clearInterval(AppState.timerInterval);
-            if (AppState.playbackTimerInterval) clearInterval(AppState.playbackTimerInterval);
+            // ==================== 更新UI显示 ====================
             
-            // 更新显示
+            // 更新句子显示
             elements.currentSentenceId.textContent = sentence.id;
             elements.currentSentenceText.textContent = sentence.text;
+            
+            // 重置计时器显示
             elements.timer.textContent = '00:00';
+            
+            // 重置进度条
             elements.progressFill.style.width = '0%';
             
-            // 重新渲染列表以显示激活状态
+            // 重置按钮状态
+            elements.recordBtn.disabled = false;
+            elements.stopBtn.disabled = true;
+            elements.playBtn.disabled = true;
+            elements.uploadBtn.disabled = true;
+            
+            // ==================== 准备音频 ====================
+            
+            console.log('准备新句子的音频...');
+            
+            if (sentence.hasUploaded) {
+                console.log('选择的是已上传的句子，从服务器下载');
+                // 已上传的句子：从GitHub下载最新版本
+                autoPreparePlayback(sentence.id);
+            } else {
+                console.log('选择的是未上传的句子，检查本地录音');
+                // 未上传的句子：检查本地录音
+                checkExistingRecording(sentence.id, true); // 添加第二个参数true表示自动播放
+            }
+            
+            // ==================== 更新列表激活状态 ====================
+            
+            // 延迟一点确保UI更新完成
+            setTimeout(() => {
+                updateActiveSentenceInList(sentence.id);
+            }, 50);
+            
+            console.log('句子切换完成，状态已重置');
+        }
+
+        // 新增：专门更新列表激活状态的函数
+        function updateActiveSentenceInList(sentenceId) {
             const items = document.querySelectorAll('.sentence-item');
             items.forEach(item => {
-                // 确保所有item都有正确的data属性
                 const idElement = item.querySelector('.sentence-meta span:first-child');
                 if (idElement && !item.dataset.sentenceId) {
                     item.dataset.sentenceId = idElement.textContent.trim();
                 }
                 
-                // 更新激活状态
-                if (item.dataset.sentenceId === sentence.id) {
+                if (item.dataset.sentenceId === sentenceId) {
                     item.classList.add('active');
                 } else {
                     item.classList.remove('active');
                 }
             });
-            
-            // 检查是否有已录制的音频
-            checkExistingRecording(sentence.id);
-            
-            // 重置按钮状态
-            elements.recordBtn.disabled = false;
-            elements.stopBtn.disabled = true;
         }
 
-        // ==================== 音频处理 ====================
-        function checkExistingRecording(sentenceId) {
+        // 修改 checkExistingRecording 函数，添加自动播放参数
+        function checkExistingRecording(sentenceId, autoPlay = false) {
+            console.log('检查本地录音:', sentenceId, 'autoPlay:', autoPlay);
+            
+            // 重要：如果是已上传的句子，跳过本地检查，直接调用autoPreparePlayback
+            const sentence = AppState.sentences.find(s => s.id === sentenceId);
+            
+            if (sentence && sentence.hasUploaded) {
+                console.log('句子已上传，跳过本地检查');
+                
+                // 仍然启用按钮，但等待autoPreparePlayback下载
+                elements.playBtn.disabled = true; // 先禁用，等下载完成再启用
+                elements.uploadBtn.disabled = false;
+                elements.uploadBtn.textContent = '📤 重新上传';
+                
+                // 显示等待下载的提示
+                showStatus('正在准备播放服务器版本...', 'info');
+                return;
+            }
+            
+            // 如果不是已上传的句子，继续原有的本地检查逻辑
             const audioKey = `audio_${AppState.selectedDate}_${sentenceId}`;
             const audioData = localStorage.getItem(audioKey);
             
             if (audioData) {
-                console.log('找到本地录音:', audioKey);
+                console.log('找到本地录音（未上传）:', audioKey);
                 
-                // 将DataURL转换为Blob
                 try {
                     const byteString = atob(audioData.split(',')[1]);
                     const mimeString = audioData.split(',')[0].split(':')[1].split(';')[0];
@@ -1123,15 +1363,17 @@
                     // 启用按钮
                     elements.playBtn.disabled = false;
                     elements.uploadBtn.disabled = false;
-                    
-                    // 根据是否已上传显示不同文本
-                    if (AppState.currentSentence && AppState.currentSentence.hasUploaded) {
-                        elements.uploadBtn.textContent = '📤 重新上传';
-                    } else {
-                        elements.uploadBtn.textContent = '📤 上传到服务器';
-                    }
+                    elements.uploadBtn.textContent = '📤 上传到服务器';
                     
                     console.log('本地录音已加载，大小:', AppState.audioBlob.size, 'bytes');
+                    
+                    // 如果设置了自动播放且不是重新录制的情况，自动播放
+                    if (autoPlay && !AppState.isRecording) {
+                        console.log('自动播放本地录音');
+                        setTimeout(() => {
+                            playRecording();
+                        }, 300);
+                    }
                 } catch (error) {
                     console.error('加载本地录音失败:', error);
                 }
@@ -1143,14 +1385,62 @@
             }
         }
 
+        // 新增一个专门处理本地录音播放的函数
+        function playLocalRecording(sentenceId) {
+            console.log('播放本地录音:', sentenceId);
+            
+            const audioKey = `audio_${AppState.selectedDate}_${sentenceId}`;
+            const audioData = localStorage.getItem(audioKey);
+            
+            if (!audioData) {
+                console.log('本地录音不存在，无法播放');
+                return;
+            }
+            
+            try {
+                const byteString = atob(audioData.split(',')[1]);
+                const mimeString = audioData.split(',')[0].split(':')[1].split(';')[0];
+                const ab = new ArrayBuffer(byteString.length);
+                const ia = new Uint8Array(ab);
+                
+                for (let i = 0; i < byteString.length; i++) {
+                    ia[i] = byteString.charCodeAt(i);
+                }
+                
+                AppState.audioBlob = new Blob([ab], { type: mimeString });
+                
+                // 启用播放按钮
+                elements.playBtn.disabled = false;
+                
+                // 延迟一点播放，确保音频加载完成
+                setTimeout(() => {
+                    playRecording();
+                }, 100);
+                
+            } catch (error) {
+                console.error('播放本地录音失败:', error);
+            }
+        }
+
         // ==================== 录音功能 ====================
         async function startRecording() {
             try {
                 console.log('开始录音...');
                 
+                // 停止正在播放的录音
+                if (AppState.isPlaying) {
+                    console.log('检测到正在播放录音，先停止播放');
+                    stopPlayback();
+                }
+                
                 // 重置状态
                 AppState.audioChunks = [];
                 AppState.audioBlob = null;
+                AppState.recordingTime = 0; // 重置录音时间
+
+                // 先显示初始时间
+                elements.timer.textContent = '00:00';
+                elements.progressFill.style.width = '0%';
                 
                 // 使用兼容的音频配置
                 const audioConstraints = {
@@ -1264,9 +1554,9 @@
                 // 停止录音计时器
                 stopTimer();
                 
-                // 重置计时器显示
-                elements.timer.textContent = '00:00';
-                elements.progressFill.style.width = '0%';
+                // // 重置计时器显示
+                // elements.timer.textContent = '00:00';
+                // elements.progressFill.style.width = '0%';
             }
         }
 
@@ -1320,7 +1610,6 @@
             }
         }
 
-        // ==================== 播放功能 ====================
         function playRecording() {
             if (AppState.isPlaying) {
                 console.log('已经在播放中');
@@ -1339,7 +1628,7 @@
                 console.log('使用内存中的音频播放');
                 audioToPlay = AppState.audioBlob;
             } else {
-                // 从本地存储加载（使用选择的日期）
+                // 从本地存储加载
                 const audioKey = `audio_${AppState.selectedDate}_${AppState.currentSentence.id}`;
                 const audioData = localStorage.getItem(audioKey);
                 
@@ -1477,34 +1766,52 @@
 
         // ==================== 停止播放函数 ====================
         function stopPlayback() {
-            AppState.isPlaying = false;
-            
-            // 停止音频
-            if (AppState.currentAudio) {
-                AppState.currentAudio.pause();
-                AppState.currentAudio.currentTime = 0;
-                AppState.currentAudio = null;
+            if (AppState.isPlaying) {
+                console.log('停止播放录音');
+                
+                AppState.isPlaying = false;
+                
+                // 停止音频
+                if (AppState.currentAudio) {
+                    AppState.currentAudio.pause();
+                    AppState.currentAudio.currentTime = 0;
+                    
+                    // 释放音频URL资源
+                    if (AppState.currentAudio.src.startsWith('blob:')) {
+                        URL.revokeObjectURL(AppState.currentAudio.src);
+                    }
+                    
+                    AppState.currentAudio = null;
+                }
+                
+                // 停止播放计时器
+                if (AppState.playbackTimerInterval) {
+                    clearInterval(AppState.playbackTimerInterval);
+                    AppState.playbackTimerInterval = null;
+                }
+                
+                // 恢复按钮状态
+                elements.playBtn.innerHTML = '<span>▶️ 播放录音</span>';
+                elements.playBtn.classList.remove('playing');
+                elements.playbackIndicator.style.display = 'none';
+                
+                // 移除动画
+                document.querySelector('.recording-area').classList.remove('playing');
+                
+                // 重置播放时间
+                AppState.playbackTime = 0;
+                AppState.audioCurrentTime = 0;
+                
+                // 注意：这里不重置计时器显示，因为selectSentence函数会处理
+                // 如果这是独立的停止操作（不是切换句子），可能需要显示00:00
+                if (!AppState.isRecording && !AppState.currentSentence) {
+                    elements.timer.textContent = '00:00';
+                    elements.progressFill.style.width = '0%';
+                }
+                
+                console.log('播放已完全停止');
             }
-            
-            // 停止播放计时器
-            if (AppState.playbackTimerInterval) {
-                clearInterval(AppState.playbackTimerInterval);
-                AppState.playbackTimerInterval = null;
-            }
-            
-            // 恢复按钮状态
-            elements.playBtn.innerHTML = '<span>▶️ 播放录音</span>';
-            elements.playBtn.classList.remove('playing');
-            elements.playbackIndicator.style.display = 'none';
-            
-            // 移除动画
-            document.querySelector('.recording-area').classList.remove('playing');
-            
-            // 重置计时器显示
-            elements.timer.textContent = '00:00';
-            elements.progressFill.style.width = '0%';
         }
-
         // ==================== GitHub上传 ====================
         async function uploadToGitHub() {
             // 验证状态
@@ -1557,7 +1864,7 @@
                 
                 // 准备请求数据
                 const requestData = {
-                    message: `录音上传: ${AppState.currentSentence.id} - ${new Date().toLocaleString('zh-CN')}`,
+                    message: `[skip ci] 录音上传: ${AppState.currentSentence.id}`,
                     content: base64Data,
                     committer: {
                         name: 'Audio Recording App',
@@ -1611,6 +1918,11 @@
                     
                     // 更新统计
                     updateStats();
+                    
+                    // 上传成功后自动播放
+                    // setTimeout(() => {
+                    //     playRecording();
+                    // }, 500);
                 }
                 
             } catch (error) {
@@ -1880,7 +2192,7 @@
         }
 
         function updateWaveform() {
-            if (!AppState.isRecording) return;
+            // if (!AppState.isRecording) return;
             
             elements.waveform.innerHTML = '';
             const barCount = 20 + Math.floor(Math.random() * 10);
@@ -1956,6 +2268,12 @@
                 // 空格键：开始/停止录音
                 if (e.code === 'Space' && !e.target.matches('input, textarea')) {
                     e.preventDefault();
+                    
+                    // 如果正在播放，先停止播放
+                    if (AppState.isPlaying) {
+                        stopPlayback();
+                    }
+                    
                     if (AppState.isRecording) {
                         stopRecording();
                     } else if (!elements.recordBtn.disabled) {
@@ -1963,9 +2281,13 @@
                     }
                 }
                 
-                // Esc键：停止播放
-                if (e.code === 'Escape' && AppState.isPlaying) {
-                    stopPlayback();
+                // Esc键：停止播放或停止录音
+                if (e.code === 'Escape') {
+                    if (AppState.isPlaying) {
+                        stopPlayback();
+                    } else if (AppState.isRecording) {
+                        stopRecording();
+                    }
                 }
                 
                 // 数字键1-9：选择句子
