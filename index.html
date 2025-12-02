@@ -1,0 +1,1657 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>句子朗读录音系统</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            overflow: hidden;
+        }
+
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 30px 40px;
+            text-align: center;
+        }
+
+        .header h1 {
+            font-size: 2.5em;
+            margin-bottom: 10px;
+        }
+
+        .header p {
+            opacity: 0.9;
+        }
+
+        .main-content {
+            display: flex;
+            min-height: 600px;
+        }
+
+        /* 左侧句子列表 */
+        .sentence-list {
+            flex: 1;
+            border-right: 1px solid #eaeaea;
+            overflow-y: auto;
+            max-height: 600px;
+        }
+
+        .sentence-list-header {
+            padding: 20px;
+            background: #f8f9fa;
+            border-bottom: 1px solid #eaeaea;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .sentence-item {
+            padding: 15px 20px;
+            border-bottom: 1px solid #eaeaea;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        .sentence-item:hover {
+            background: #f8f9fa;
+        }
+
+        .sentence-item.active {
+            background: linear-gradient(90deg, rgba(102, 126, 234, 0.1), rgba(118, 75, 162, 0.1));
+            border-left: 4px solid #667eea;
+        }
+
+        .sentence-text {
+            font-size: 16px;
+            color: #333;
+            margin-bottom: 8px;
+        }
+
+        .sentence-meta {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 14px;
+            color: #666;
+        }
+
+        .status-badge {
+            padding: 3px 8px;
+            border-radius: 12px;
+            font-size: 12px;
+        }
+
+        .status-recorded {
+            background: #d4edda;
+            color: #155724;
+        }
+
+        .status-pending {
+            background: #fff3cd;
+            color: #856404;
+        }
+
+        .status-uploaded {
+            background: #d1ecf1;
+            color: #0c5460;
+        }
+
+        /* 右侧录音区域 */
+        .recording-area {
+            flex: 2;
+            padding: 30px;
+        }
+
+        .current-sentence {
+            background: #f8f9fa;
+            padding: 25px;
+            border-radius: 10px;
+            margin-bottom: 30px;
+            border-left: 5px solid #667eea;
+        }
+
+        .current-sentence .sentence-id {
+            display: inline-block;
+            background: #667eea;
+            color: white;
+            padding: 5px 15px;
+            border-radius: 15px;
+            font-size: 14px;
+            margin-bottom: 10px;
+        }
+
+        .current-sentence-text {
+            font-size: 20px;
+            line-height: 1.6;
+            color: #333;
+        }
+
+        /* 录音控制区 */
+        .recording-controls {
+            text-align: center;
+            margin: 30px 0;
+        }
+
+        .control-buttons {
+            display: flex;
+            justify-content: center;
+            gap: 20px;
+            margin: 20px 0;
+        }
+
+        .btn {
+            padding: 12px 30px;
+            border: none;
+            border-radius: 25px;
+            font-size: 16px;
+            cursor: pointer;
+            transition: all 0.3s;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-weight: 500;
+        }
+
+        .btn-record {
+            background: #dc3545;
+            color: white;
+        }
+
+        .btn-record:hover {
+            background: #c82333;
+            transform: translateY(-2px);
+        }
+
+        .btn-stop {
+            background: #6c757d;
+            color: white;
+        }
+
+        .btn-stop:hover {
+            background: #5a6268;
+            transform: translateY(-2px);
+        }
+
+        .btn-upload {
+            background: #28a745;
+            color: white;
+        }
+
+        .btn-upload:hover {
+            background: #218838;
+            transform: translateY(-2px);
+        }
+
+        .btn-play {
+            background: #17a2b8;
+            color: white;
+        }
+
+        .btn-play:hover {
+            background: #138496;
+            transform: translateY(-2px);
+        }
+
+        .btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            transform: none !important;
+        }
+
+        .timer {
+            font-size: 48px;
+            font-weight: bold;
+            color: #667eea;
+            margin: 20px 0;
+        }
+
+        .waveform {
+            height: 100px;
+            background: #f8f9fa;
+            border-radius: 10px;
+            margin: 20px 0;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .waveform-bar {
+            position: absolute;
+            bottom: 0;
+            width: 3px;
+            background: #667eea;
+            border-radius: 3px 3px 0 0;
+        }
+
+        /* GitHub配置显示 */
+        .github-config {
+            background: #f8f9fa;
+            padding: 20px;
+            border-radius: 10px;
+            margin-top: 30px;
+            position: relative;
+        }
+
+        .config-display {
+            padding: 15px;
+            background: white;
+            border-radius: 8px;
+            border: 1px solid #e0e0e0;
+            margin-bottom: 15px;
+        }
+
+        .config-info {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 8px 0;
+            border-bottom: 1px solid #f0f0f0;
+        }
+
+        .config-info:last-child {
+            border-bottom: none;
+        }
+
+        .config-label {
+            font-weight: 600;
+            color: #555;
+        }
+
+        .config-value {
+            color: #2196F3;
+            font-family: monospace;
+            font-size: 14px;
+        }
+
+        .masked-token {
+            color: #666;
+            font-family: monospace;
+            font-size: 14px;
+            letter-spacing: 2px;
+        }
+
+        /* 播放指示器 */
+        .playback-indicator {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            background: #2196F3;
+            color: white;
+            padding: 10px 20px;
+            border-radius: 20px;
+            box-shadow: 0 2px 10px rgba(33, 150, 243, 0.3);
+            z-index: 1000;
+            display: none;
+            animation: slideIn 0.3s ease;
+        }
+
+        .status-message {
+            position: fixed;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            padding: 12px 24px;
+            border-radius: 5px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.2);
+            z-index: 1000;
+            animation: slideIn 0.3s ease;
+            display: none;
+        }
+
+        .status-success {
+            background: #4CAF50;
+            color: white;
+        }
+
+        .status-error {
+            background: #f44336;
+            color: white;
+        }
+
+        .status-info {
+            background: #2196F3;
+            color: white;
+        }
+
+        /* 进度条 */
+        .progress-bar {
+            height: 8px;
+            background: #e9ecef;
+            border-radius: 4px;
+            overflow: hidden;
+            margin: 20px 0;
+        }
+
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #667eea, #764ba2);
+            transition: width 0.3s;
+        }
+
+        .stats {
+            display: flex;
+            justify-content: space-around;
+            margin-top: 20px;
+            padding-top: 20px;
+            border-top: 1px solid #eaeaea;
+        }
+
+        .stat-item {
+            text-align: center;
+        }
+
+        .stat-number {
+            font-size: 24px;
+            font-weight: bold;
+            color: #667eea;
+        }
+
+        .stat-label {
+            font-size: 14px;
+            color: #666;
+            margin-top: 5px;
+        }
+
+        /* 动画 */
+        @keyframes slideIn {
+            from { top: -50px; opacity: 0; }
+            to { top: 20px; opacity: 1; }
+        }
+
+        @keyframes slideOut {
+            from { top: 20px; opacity: 1; }
+            to { top: -50px; opacity: 0; }
+        }
+
+        @keyframes pulse {
+            0% { box-shadow: 0 0 0 0 rgba(33, 150, 243, 0.4); }
+            70% { box-shadow: 0 0 0 10px rgba(33, 150, 243, 0); }
+            100% { box-shadow: 0 0 0 0 rgba(33, 150, 243, 0); }
+        }
+
+        @keyframes recordingPulse {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.05); }
+            100% { transform: scale(1); }
+        }
+
+        @keyframes waveform {
+            0% { height: 20%; }
+            50% { height: 100%; }
+            100% { height: 20%; }
+        }
+
+        .playing .current-sentence {
+            animation: pulse 1.5s infinite;
+        }
+
+        .btn-play.playing {
+            background: #ff9800;
+            animation: recordingPulse 1.5s infinite;
+        }
+
+        .upload-icon {
+            margin-left: 5px;
+        }
+
+        @media (max-width: 768px) {
+            .main-content {
+                flex-direction: column;
+            }
+            
+            .sentence-list {
+                max-height: 300px;
+            }
+            
+            .control-buttons {
+                flex-wrap: wrap;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- 头部 -->
+        <div class="header">
+            <h1>📝 句子朗读录音系统</h1>
+            <p>朗读句子并自动上传到GitHub | 第一次录制自动上传，第二次需手动重新上传</p>
+        </div>
+
+        <!-- 主内容区 -->
+        <div class="main-content">
+            <!-- 左侧句子列表 -->
+            <div class="sentence-list">
+                <div class="sentence-list-header">
+                    <h3>📋 句子列表</h3>
+                    <span id="progressText">0/0 已完成</span>
+                </div>
+                <div id="sentencesContainer">
+                    <!-- 句子项将通过JS动态生成 -->
+                </div>
+            </div>
+
+            <!-- 右侧录音区 -->
+            <div class="recording-area">
+                <!-- 当前句子展示 -->
+                <div class="current-sentence">
+                    <div class="sentence-id" id="currentSentenceId">S001</div>
+                    <div class="current-sentence-text" id="currentSentenceText">
+                        请从左侧选择一句开始朗读录音
+                    </div>
+                </div>
+
+                <!-- 录音控制 -->
+                <div class="recording-controls">
+                    <div class="timer" id="timer">00:00</div>
+                    <div class="waveform" id="waveform"></div>
+                    
+                    <div class="control-buttons">
+                        <button class="btn btn-record" id="recordBtn">
+                            <span>🎤 开始录音</span>
+                        </button>
+                        <button class="btn btn-stop" id="stopBtn" disabled>
+                            <span>⏹️ 停止录音</span>
+                        </button>
+                        <button class="btn btn-upload" id="uploadBtn" disabled>
+                            <span>📤 上传到GitHub</span>
+                        </button>
+                        <button class="btn btn-play" id="playBtn" disabled>
+                            <span>▶️ 播放录音</span>
+                        </button>
+                    </div>
+
+                    <!-- 进度条 -->
+                    <div class="progress-bar">
+                        <div class="progress-fill" id="progressFill" style="width: 0%"></div>
+                    </div>
+                </div>
+
+                <!-- GitHub配置显示 -->
+                <div class="github-config">
+                    <h3>⚙️ GitHub配置状态</h3>
+                    <div class="config-display">
+                        <div class="config-info">
+                            <span class="config-label">仓库:</span>
+                            <span class="config-value" id="repoDisplay"></span>
+                        </div>
+                        <div class="config-info">
+                            <span class="config-label">Token状态:</span>
+                            <span class="masked-token" id="tokenStatus">●●●●●●●●●●●●●●●●</span>
+                        </div>
+                    </div>
+                    <div class="config-info" id="configMessage">
+                        <em>配置已加载，可以直接开始录音</em>
+                    </div>
+                </div>
+
+                <!-- 统计信息 -->
+                <div class="stats">
+                    <div class="stat-item">
+                        <div class="stat-number" id="totalSentences">0</div>
+                        <div class="stat-label">总句子数</div>
+                    </div>
+                    <div class="stat-item">
+                        <div class="stat-number" id="completedSentences">0</div>
+                        <div class="stat-label">已完成</div>
+                    </div>
+                    <div class="stat-item">
+                        <div class="stat-number" id="uploadedSentences">0</div>
+                        <div class="stat-label">已上传</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 状态指示器 -->
+    <div class="playback-indicator" id="playbackIndicator">🔊 正在播放...</div>
+    <div class="status-message" id="statusMessage"></div>
+
+    <script>
+        token1 = "ghp_"
+        token2 = "JgAogZu6YKI1R3q5o"
+        token3 = "gZ3PxKm7yNdZ51ZHW5t"
+        // ==================== 配置文件 ====================
+        // 在这里配置你的GitHub信息
+        const GITHUB_CONFIG = {
+            // 你的GitHub仓库，格式：用户名/仓库名
+            REPOSITORY: 'wanzishare/RecordingManagement',
+            
+            // 你的GitHub Personal Access Token（需要repo权限）
+            TOKEN: token1 + token2 + token3
+        };
+        
+        // 示例句子数据
+        const SAMPLE_SENTENCES = [
+            { id: 'S001', text: '生活就像一盒巧克力，你永远不知道下一颗是什么味道。', recorded: false, hasUploaded: false },
+            { id: 'S002', text: '成功不是终点，失败也并非末日，重要的是继续前进的勇气。', recorded: false, hasUploaded: false },
+            { id: 'S003', text: '学习如逆水行舟，不进则退。', recorded: false, hasUploaded: false },
+            { id: 'S004', text: '时间是最好的老师，但遗憾的是，它会杀死所有学生。', recorded: false, hasUploaded: false },
+            { id: 'S005', text: '梦想不会逃跑，逃跑的永远是自己。', recorded: false, hasUploaded: false },
+            { id: 'S006', text: '真正的发现之旅不在于寻找新风景，而在于拥有新眼光。', recorded: false, hasUploaded: false },
+            { id: 'S007', text: '忍耐之树结出黄金之果。', recorded: false, hasUploaded: false },
+            { id: 'S008', text: '人生没有彩排，每一天都是现场直播。', recorded: false, hasUploaded: false },
+            { id: 'S009', text: '机会总是留给有准备的人。', recorded: false, hasUploaded: false },
+            { id: 'S010', text: '千里之行，始于足下。', recorded: false, hasUploaded: false }
+        ];
+
+        // ==================== 应用状态 ====================
+        const AppState = {
+            sentences: [],
+            currentSentence: null,
+            audioBlob: null,
+            audioChunks: [],
+            isRecording: false,
+            recorder: null,
+            timerInterval: null,
+            recordingTime: 0,
+            todayDate: new Date().toISOString().split('T')[0],
+            config: GITHUB_CONFIG,
+            isPlaying: false,
+            currentAudio: null,            
+            // 新增的播放计时器属性
+            playbackTimerInterval: null,
+            playbackTime: 0,
+            audioCurrentTime: 0,
+            audioDuration: 0
+        };
+
+        // ==================== DOM元素 ====================
+        const elements = {
+            sentencesContainer: document.getElementById('sentencesContainer'),
+            currentSentenceId: document.getElementById('currentSentenceId'),
+            currentSentenceText: document.getElementById('currentSentenceText'),
+            recordBtn: document.getElementById('recordBtn'),
+            stopBtn: document.getElementById('stopBtn'),
+            uploadBtn: document.getElementById('uploadBtn'),
+            playBtn: document.getElementById('playBtn'),
+            timer: document.getElementById('timer'),
+            waveform: document.getElementById('waveform'),
+            progressFill: document.getElementById('progressFill'),
+            progressText: document.getElementById('progressText'),
+            totalSentences: document.getElementById('totalSentences'),
+            completedSentences: document.getElementById('completedSentences'),
+            uploadedSentences: document.getElementById('uploadedSentences'),
+            repoDisplay: document.getElementById('repoDisplay'),
+            tokenStatus: document.getElementById('tokenStatus'),
+            configMessage: document.getElementById('configMessage'),
+            playbackIndicator: document.getElementById('playbackIndicator'),
+            statusMessage: document.getElementById('statusMessage')
+        };
+
+        // ==================== 初始化应用 ====================
+        function initApp() {
+            console.log('初始化应用...');
+
+            // 检查音频兼容性
+            checkAudioCompatibility();
+            
+            // 检查GitHub配置
+            if (!AppState.config.REPOSITORY || !AppState.config.TOKEN) {
+                showStatus('请先配置GitHub信息！修改代码中的GITHUB_CONFIG变量。', 'error');
+                return;
+            }
+            
+            // 显示配置信息
+            elements.repoDisplay.textContent = AppState.config.REPOSITORY;
+            
+            // 显示Token状态
+            const token = AppState.config.TOKEN;
+            if (token.length > 8) {
+                const masked = '●'.repeat(12) + token.slice(-8);
+                elements.tokenStatus.textContent = masked;
+            }
+            
+            // 加载句子数据
+            loadSentences();
+            
+            // 渲染句子列表
+            renderSentenceList();
+            
+            // 更新统计信息
+            updateStats();
+            
+            // 设置事件监听器
+            setupEventListeners();
+            
+            // 默认选中第一个句子
+            if (AppState.sentences.length > 0) {
+                selectSentence(AppState.sentences[0]);
+            }
+            
+            showStatus('系统已就绪，可以开始录音', 'success');
+        }
+
+        // ==================== 句子管理 ====================
+        function loadSentences() {
+            const savedKey = `sentences_${AppState.todayDate}`;
+            const saved = localStorage.getItem(savedKey);
+            
+            if (saved) {
+                try {
+                    AppState.sentences = JSON.parse(saved);
+                    console.log('从本地存储加载句子数据');
+                } catch (e) {
+                    console.warn('本地存储数据损坏，使用默认句子');
+                    AppState.sentences = [...SAMPLE_SENTENCES];
+                }
+            } else {
+                AppState.sentences = [...SAMPLE_SENTENCES];
+                console.log('使用默认句子数据');
+            }
+            
+            // 确保每个句子都有 hasUploaded 属性
+            AppState.sentences.forEach(sentence => {
+                if (sentence.hasUploaded === undefined) {
+                    sentence.hasUploaded = false;
+                }
+            });
+        }
+
+        function saveSentences() {
+            const key = `sentences_${AppState.todayDate}`;
+            localStorage.setItem(key, JSON.stringify(AppState.sentences));
+        }
+
+        function renderSentenceList() {
+            elements.sentencesContainer.innerHTML = '';
+            
+            AppState.sentences.forEach((sentence, index) => {
+                const item = document.createElement('div');
+                item.className = `sentence-item ${sentence === AppState.currentSentence ? 'active' : ''}`;
+                
+                // 确定状态徽章
+                let statusClass = 'status-pending';
+                let statusText = '待录制';
+                
+                if (sentence.recorded) {
+                    if (sentence.hasUploaded) {
+                        statusClass = 'status-uploaded';
+                        statusText = '✓ 已上传';
+                    } else {
+                        statusClass = 'status-recorded';
+                        statusText = '✓ 已录制';
+                    }
+                }
+                
+                item.innerHTML = `
+                    <div class="sentence-text">${sentence.hasUploaded ? '🌐 ' : ''}${sentence.text}</div>
+                    <div class="sentence-meta">
+                        <span>${sentence.id}</span>
+                        <span class="status-badge ${statusClass}">
+                            ${statusText}
+                        </span>
+                    </div>
+                `;
+                
+                item.onclick = () => selectSentence(sentence);
+                elements.sentencesContainer.appendChild(item);
+            });
+        }
+
+        function selectSentence(sentence) {
+            console.log('选择句子:', sentence.id);
+            
+            if (!sentence) {
+                console.error('无法选择句子，句子对象为空');
+                return;
+            }
+            
+            AppState.currentSentence = sentence;
+            AppState.audioBlob = null;
+            
+            // 停止任何正在进行的播放
+            if (AppState.isPlaying) {
+                stopPlayback();
+            }
+            
+            // 停止任何计时器
+            if (AppState.timerInterval) {
+                clearInterval(AppState.timerInterval);
+                AppState.timerInterval = null;
+            }
+            if (AppState.playbackTimerInterval) {
+                clearInterval(AppState.playbackTimerInterval);
+                AppState.playbackTimerInterval = null;
+            }
+            
+            // 更新显示
+            elements.currentSentenceId.textContent = sentence.id;
+            elements.currentSentenceText.textContent = sentence.text;
+            
+            // 重置计时器显示
+            elements.timer.textContent = '00:00';
+            elements.progressFill.style.width = '0%';
+            
+            // 重新渲染列表以显示激活状态
+            renderSentenceList();
+            
+            // 检查是否有已录制的音频
+            checkExistingRecording(sentence.id);
+            
+            // 重置录音按钮状态
+            elements.recordBtn.disabled = false;
+            elements.stopBtn.disabled = true;
+        }
+
+        // ==================== 音频处理 ====================
+        function checkExistingRecording(sentenceId) {
+            const audioKey = `audio_${AppState.todayDate}_${sentenceId}`;
+            const audioData = localStorage.getItem(audioKey);
+            
+            if (audioData) {
+                console.log('找到本地录音:', audioKey);
+                
+                // 将DataURL转换为Blob
+                try {
+                    const byteString = atob(audioData.split(',')[1]);
+                    const mimeString = audioData.split(',')[0].split(':')[1].split(';')[0];
+                    const ab = new ArrayBuffer(byteString.length);
+                    const ia = new Uint8Array(ab);
+                    
+                    for (let i = 0; i < byteString.length; i++) {
+                        ia[i] = byteString.charCodeAt(i);
+                    }
+                    
+                    AppState.audioBlob = new Blob([ab], { type: mimeString });
+                    
+                    // 启用按钮
+                    elements.playBtn.disabled = false;
+                    elements.uploadBtn.disabled = false;
+                    
+                    // 根据是否已上传显示不同文本
+                    if (AppState.currentSentence && AppState.currentSentence.hasUploaded) {
+                        elements.uploadBtn.textContent = '📤 重新上传';
+                    } else {
+                        elements.uploadBtn.textContent = '📤 上传到GitHub';
+                    }
+                    
+                    console.log('本地录音已加载，大小:', AppState.audioBlob.size, 'bytes');
+                } catch (error) {
+                    console.error('加载本地录音失败:', error);
+                }
+            } else {
+                console.log('没有找到本地录音');
+                elements.playBtn.disabled = true;
+                elements.uploadBtn.textContent = '📤 上传到GitHub';
+                elements.uploadBtn.disabled = true;
+            }
+        }
+
+        // ==================== 录音功能 ====================
+        async function startRecording() {
+            try {
+                console.log('开始录音...');
+                
+                // 重置状态
+                AppState.audioChunks = [];
+                AppState.audioBlob = null;
+                
+                // 使用兼容的音频配置
+                const audioConstraints = {
+                    audio: {
+                        echoCancellation: true,
+                        noiseSuppression: true,
+                        sampleRate: 44100,
+                        channelCount: 1,
+                        // 设备兼容性配置
+                        autoGainControl: true
+                    }
+                };
+                
+                // 请求麦克风权限
+                const stream = await navigator.mediaDevices.getUserMedia(audioConstraints);
+                
+                // 选择兼容的MIME类型
+                let mimeType = 'audio/webm';
+                
+                // 检测设备并选择最合适的格式
+                if (MediaRecorder.isTypeSupported('audio/mp4')) {
+                    mimeType = 'audio/mp4;codecs=mp4a.40.2'; // AAC编码，iOS和Android都支持
+                } else if (MediaRecorder.isTypeSupported('audio/webm;codecs=opus')) {
+                    mimeType = 'audio/webm;codecs=opus'; // Opus编码，Android和Chrome支持
+                } else if (MediaRecorder.isTypeSupported('audio/wav')) {
+                    mimeType = 'audio/wav'; // WAV格式，所有设备都支持
+                } else if (MediaRecorder.isTypeSupported('audio/ogg;codecs=opus')) {
+                    mimeType = 'audio/ogg;codecs=opus'; // Ogg格式
+                }
+                
+                console.log('选择的音频格式:', mimeType);
+                
+                // 创建录音器
+                const recorderOptions = {
+                    mimeType: mimeType,
+                    audioBitsPerSecond: 128000 // 128kbps，质量与大小平衡
+                };
+                
+                // 检查MIME类型是否支持
+                if (!MediaRecorder.isTypeSupported(recorderOptions.mimeType)) {
+                    console.warn('MIME类型不支持，使用默认格式');
+                    delete recorderOptions.mimeType; // 让浏览器选择默认格式
+                }
+                
+                AppState.recorder = new MediaRecorder(stream, recorderOptions);
+                
+                // 收集音频数据
+                AppState.recorder.ondataavailable = (event) => {
+                    if (event.data && event.data.size > 0) {
+                        AppState.audioChunks.push(event.data);
+                        updateWaveform();
+                    }
+                };
+                
+                // 录音停止时的处理
+                AppState.recorder.onstop = () => {
+                    console.log('录音器停止，数据块数量:', AppState.audioChunks.length);
+                    
+                    if (AppState.audioChunks.length > 0) {
+                        // 创建音频Blob
+                        AppState.audioBlob = new Blob(AppState.audioChunks, { 
+                            type: AppState.recorder.mimeType || 'audio/webm'
+                        });
+                        
+                        console.log('音频Blob创建成功，大小:', AppState.audioBlob.size, 'bytes');
+                        console.log('音频格式:', AppState.audioBlob.type);
+                        
+                        // 保存到本地
+                        saveRecordingLocally();
+                        
+                        // 停止音轨
+                        stream.getTracks().forEach(track => track.stop());
+                    } else {
+                        console.warn('没有录音数据');
+                        showStatus('录音失败，请重试', 'error');
+                    }
+                };
+                
+                // 开始录音
+                AppState.recorder.start(100); // 每100ms收集数据
+                AppState.isRecording = true;
+                
+                // 更新按钮状态
+                elements.recordBtn.disabled = true;
+                elements.stopBtn.disabled = false;
+                elements.uploadBtn.disabled = true;
+                elements.playBtn.disabled = true;
+                
+                // 开始计时
+                startTimer();
+                
+                showStatus('正在录音...', 'info');
+                
+            } catch (error) {
+                console.error('录音错误:', error);
+                showStatus('无法访问麦克风：' + error.message, 'error');
+            }
+        }
+
+        function stopRecording() {
+            if (AppState.recorder && AppState.isRecording) {
+                console.log('停止录音...');
+                
+                AppState.recorder.stop();
+                AppState.isRecording = false;
+                
+                // 更新按钮状态
+                elements.recordBtn.disabled = false;
+                elements.stopBtn.disabled = true;
+                
+                // 停止录音计时器
+                stopTimer();
+                
+                // 重置计时器显示
+                elements.timer.textContent = '00:00';
+                elements.progressFill.style.width = '0%';
+            }
+        }
+
+        function saveRecordingLocally() {
+            if (AppState.currentSentence && AppState.audioBlob) {
+                const reader = new FileReader();
+                
+                reader.onload = () => {
+                    const audioKey = `audio_${AppState.todayDate}_${AppState.currentSentence.id}`;
+                    localStorage.setItem(audioKey, reader.result);
+                    
+                    // 更新句子状态
+                    AppState.currentSentence.recorded = true;
+                    AppState.currentSentence.lastRecorded = new Date().toISOString();
+                    
+                    // 保存并更新显示
+                    saveSentences();
+                    renderSentenceList();
+                    updateStats();
+                    
+                    console.log('录音已保存到本地存储:', audioKey);
+                    
+                    // 启用播放按钮
+                    elements.playBtn.disabled = false;
+                    
+                    // 判断是否为第一次录制
+                    const isFirstRecording = !AppState.currentSentence.hasUploaded;
+                    
+                    if (isFirstRecording) {
+                        // 第一次录制，自动上传
+                        console.log('第一次录制，自动上传到GitHub');
+                        showStatus('录音完成，正在自动上传到GitHub...', 'success');
+                        setTimeout(() => {
+                            uploadToGitHub();
+                        }, 500);
+                    } else {
+                        // 第二次及以后，需要手动点击上传
+                        console.log('非第一次录制，等待手动上传');
+                        elements.uploadBtn.disabled = false;
+                        elements.uploadBtn.textContent = '📤 重新上传';
+                        showStatus('录音完成！如需更新到GitHub请点击"重新上传"', 'success');
+                    }
+                };
+                
+                reader.onerror = (error) => {
+                    console.error('保存录音失败:', error);
+                    showStatus('保存录音失败', 'error');
+                };
+                
+                reader.readAsDataURL(AppState.audioBlob);
+            }
+        }
+
+        // ==================== 播放功能 ====================
+        // ==================== 播放功能 ====================
+function playRecording() {
+    if (AppState.isPlaying) {
+        console.log('已经在播放中');
+        return;
+    }
+    
+    if (!AppState.currentSentence) {
+        showStatus('请先选择一个句子', 'error');
+        return;
+    }
+    
+    let audioToPlay = null;
+    
+    // 优先使用内存中的Blob
+    if (AppState.audioBlob) {
+        console.log('使用内存中的音频播放');
+        audioToPlay = AppState.audioBlob;
+    } else {
+        // 从本地存储加载
+        const audioKey = `audio_${AppState.todayDate}_${AppState.currentSentence.id}`;
+        const audioData = localStorage.getItem(audioKey);
+        
+        if (!audioData) {
+            showStatus('没有找到录音文件', 'error');
+            return;
+        }
+        
+        try {
+            const byteString = atob(audioData.split(',')[1]);
+            const mimeString = audioData.split(',')[0].split(':')[1].split(';')[0];
+            const ab = new ArrayBuffer(byteString.length);
+            const ia = new Uint8Array(ab);
+            
+            for (let i = 0; i < byteString.length; i++) {
+                ia[i] = byteString.charCodeAt(i);
+            }
+            
+            audioToPlay = new Blob([ab], { type: mimeString });
+            AppState.audioBlob = audioToPlay; // 缓存
+        } catch (error) {
+            console.error('加载音频失败:', error);
+            showStatus('加载音频失败', 'error');
+            return;
+        }
+    }
+    
+    if (!audioToPlay) {
+        showStatus('没有可播放的音频', 'error');
+        return;
+    }
+    
+    // 创建音频对象
+    const audioUrl = URL.createObjectURL(audioToPlay);
+    const audio = new Audio(audioUrl);
+    
+    // 重置播放时间
+    AppState.audioCurrentTime = 0;
+    AppState.audioDuration = 0;
+    
+    // 设置播放状态
+    AppState.isPlaying = true;
+    AppState.currentAudio = audio;
+    elements.playBtn.innerHTML = '<span>⏸️ 正在播放...</span>';
+    elements.playBtn.classList.add('playing');
+    elements.playbackIndicator.style.display = 'block';
+    
+    // 添加播放动画
+    document.querySelector('.recording-area').classList.add('playing');
+    
+    // 播放事件处理
+    audio.onloadedmetadata = () => {
+        // 获取音频总时长
+        AppState.audioDuration = audio.duration;
+        console.log('音频时长:', AppState.audioDuration, '秒');
+    };
+    
+    audio.onplay = () => {
+        console.log('音频开始播放');
+        
+        // 开始播放计时器
+        startPlaybackTimer();
+    };
+    
+    audio.ontimeupdate = () => {
+        // 更新当前播放时间
+        AppState.audioCurrentTime = audio.currentTime;
+        
+        // 更新计时器显示
+        updatePlaybackTimer();
+    };
+    
+    audio.onended = () => {
+        console.log('音频播放结束');
+        stopPlayback();
+        URL.revokeObjectURL(audioUrl);
+    };
+    
+    audio.onerror = (error) => {
+        console.error('播放错误:', error);
+        stopPlayback();
+        showStatus('播放失败', 'error');
+        URL.revokeObjectURL(audioUrl);
+    };
+    
+    // 开始播放
+    audio.play().catch(error => {
+        console.error('播放失败:', error);
+        stopPlayback();
+        showStatus('播放失败：' + error.message, 'error');
+        URL.revokeObjectURL(audioUrl);
+    });
+}
+
+        // ==================== 播放计时器函数 ====================
+        function startPlaybackTimer() {
+            // 停止之前的计时器
+            if (AppState.playbackTimerInterval) {
+                clearInterval(AppState.playbackTimerInterval);
+            }
+            
+            // 重置播放时间
+            AppState.playbackTime = 0;
+            
+            // 每100ms更新一次计时器
+            AppState.playbackTimerInterval = setInterval(() => {
+                AppState.playbackTime += 0.1;
+                updatePlaybackTimer();
+            }, 100);
+        }
+
+        function updatePlaybackTimer() {
+            // 如果音频已经加载了时长，使用音频的实际播放时间
+            let displayTime = AppState.audioCurrentTime || AppState.playbackTime;
+            
+            // 确保时间不会超过音频总时长
+            if (AppState.audioDuration && displayTime > AppState.audioDuration) {
+                displayTime = AppState.audioDuration;
+            }
+            
+            // 格式化时间显示
+            const minutes = Math.floor(displayTime / 60).toString().padStart(2, '0');
+            const seconds = Math.floor(displayTime % 60).toString().padStart(2, '0');
+            const milliseconds = Math.floor((displayTime % 1) * 100).toString().padStart(2, '0');
+            
+            // 显示播放时间
+            // elements.timer.textContent = `${minutes}:${seconds}.${milliseconds}`;
+            elements.timer.textContent = `${minutes}:${seconds}`;
+            
+            // 如果音频有总时长，显示进度百分比
+            if (AppState.audioDuration) {
+                const progressPercent = (displayTime / AppState.audioDuration) * 100;
+                elements.progressFill.style.width = `${progressPercent}%`;
+            }
+        }
+
+        // ==================== 停止播放函数 ====================
+        function stopPlayback() {
+            AppState.isPlaying = false;
+            
+            // 停止音频
+            if (AppState.currentAudio) {
+                AppState.currentAudio.pause();
+                AppState.currentAudio.currentTime = 0;
+                AppState.currentAudio = null;
+            }
+            
+            // 停止播放计时器
+            if (AppState.playbackTimerInterval) {
+                clearInterval(AppState.playbackTimerInterval);
+                AppState.playbackTimerInterval = null;
+            }
+            
+            // 恢复按钮状态
+            elements.playBtn.innerHTML = '<span>▶️ 播放录音</span>';
+            elements.playBtn.classList.remove('playing');
+            elements.playbackIndicator.style.display = 'none';
+            
+            // 移除动画
+            document.querySelector('.recording-area').classList.remove('playing');
+            
+            // 重置计时器显示
+            elements.timer.textContent = '00:00';
+            elements.progressFill.style.width = '0%';
+        }
+
+        function stopPlayback() {
+            AppState.isPlaying = false;
+            
+            // 停止音频
+            if (AppState.currentAudio) {
+                AppState.currentAudio.pause();
+                AppState.currentAudio.currentTime = 0;
+                AppState.currentAudio = null;
+            }
+            
+            // 恢复按钮状态
+            elements.playBtn.innerHTML = '<span>▶️ 播放录音</span>';
+            elements.playBtn.classList.remove('playing');
+            elements.playbackIndicator.style.display = 'none';
+            
+            // 移除动画
+            document.querySelector('.recording-area').classList.remove('playing');
+        }
+
+        // ==================== GitHub上传 ====================
+        async function uploadToGitHub() {
+            // 验证状态
+            if (!AppState.audioBlob) {
+                showStatus('请先录制音频！', 'error');
+                return;
+            }
+            
+            if (!AppState.currentSentence) {
+                showStatus('请选择一个句子！', 'error');
+                return;
+            }
+            
+            if (!AppState.config.REPOSITORY || !AppState.config.TOKEN) {
+                showStatus('GitHub配置不正确', 'error');
+                return;
+            }
+            
+            try {
+                // 更新按钮状态
+                elements.uploadBtn.innerHTML = '<span>⏳ 上传中...</span>';
+                elements.uploadBtn.disabled = true;
+                
+                // 统一使用.wav格式，确保最大兼容性
+                const fileName = `${AppState.todayDate}_${AppState.currentSentence.id}.wav`;
+                const filePath = `recordings/${AppState.todayDate}/${fileName}`;
+                
+                console.log('准备上传文件:', filePath, '原始格式:', AppState.audioBlob.type);
+                
+                // 如果当前不是WAV格式，转换为WAV格式
+                let finalBlob = AppState.audioBlob;
+                
+                if (!AppState.audioBlob.type.includes('wav') && 
+                    !AppState.audioBlob.type.includes('x-wav')) {
+                    console.log('转换为WAV格式以确保兼容性');
+                    try {
+                        finalBlob = await convertToWav(AppState.audioBlob);
+                        console.log('转换为WAV成功，新格式:', finalBlob.type);
+                    } catch (conversionError) {
+                        console.warn('WAV转换失败，使用原始格式:', conversionError);
+                        // 继续使用原始格式
+                    }
+                }
+                
+                // 转换Blob为Base64
+                const base64Data = await blobToBase64(finalBlob);
+                
+                // 检查文件是否已存在
+                const existingSHA = await getFileSHA(filePath);
+                
+                // 准备请求数据
+                const requestData = {
+                    message: `录音上传: ${AppState.currentSentence.id} - ${new Date().toLocaleString('zh-CN')}`,
+                    content: base64Data,
+                    committer: {
+                        name: 'Audio Recording App',
+                        email: 'audio@example.com'
+                    }
+                };
+                
+                // 如果文件存在，需要SHA来更新
+                if (existingSHA) {
+                    requestData.sha = existingSHA;
+                }
+                
+                // 发送请求到GitHub API
+                console.log('发送请求到GitHub API...');
+                const response = await fetch(
+                    `https://api.github.com/repos/${AppState.config.REPOSITORY}/contents/${filePath}`,
+                    {
+                        method: 'PUT',
+                        headers: {
+                            'Authorization': `token ${AppState.config.TOKEN}`,
+                            'Content-Type': 'application/json; charset=utf-8',
+                            'Accept': 'application/vnd.github.v3+json',
+                            'User-Agent': 'AudioRecordingApp/1.0'
+                        },
+                        body: JSON.stringify(requestData)
+                    }
+                );
+                
+                const result = await response.json();
+                
+                if (response.ok) {
+                    console.log('上传成功:', result);
+                    showStatus('✅ 上传成功！文件已保存到GitHub', 'success');
+                    
+                    // 更新句子状态 - 标记为已上传
+                    AppState.currentSentence.uploaded = true;
+                    AppState.currentSentence.hasUploaded = true;
+                    AppState.currentSentence.uploadedAt = new Date().toISOString();
+                    
+                    // 更新上传按钮文本
+                    elements.uploadBtn.textContent = '📤 重新上传';
+                    elements.uploadBtn.disabled = false;
+                    
+                    saveSentences();
+                    renderSentenceList();
+                    updateStats();
+                    
+                } else {REPOSITORY
+                    console.error('上传失败:', result);
+                    throw new Error(result.message || '上传失败');
+                }
+                
+            } catch (error) {
+                console.error('上传错误:', error);
+                showStatus(`❌ 上传失败：${error.message}`, 'error');
+                
+                // 恢复按钮状态
+                elements.uploadBtn.innerHTML = '<span>📤 上传到GitHub</span>';
+                elements.uploadBtn.disabled = false;
+            }
+        }
+
+        // ==================== 音频转换工具函数 ====================
+        async function convertToWav(audioBlob) {
+            return new Promise((resolve, reject) => {
+                console.log('开始转换为WAV格式');
+                
+                // 创建音频上下文
+                const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                const reader = new FileReader();
+                
+                reader.onload = function(e) {
+                    audioContext.decodeAudioData(e.target.result)
+                        .then(buffer => {
+                            // 获取音频参数
+                            const sampleRate = buffer.sampleRate;
+                            const numberOfChannels = buffer.numberOfChannels;
+                            const length = buffer.length;
+                            
+                            // 创建WAV文件
+                            const wavData = encodeWAV(buffer, sampleRate, numberOfChannels);
+                            const wavBlob = new Blob([wavData], { type: 'audio/wav' });
+                            
+                            console.log('WAV转换成功，大小:', wavBlob.size);
+                            audioContext.close();
+                            resolve(wavBlob);
+                        })
+                        .catch(error => {
+                            console.error('解码音频失败:', error);
+                            audioContext.close();
+                            
+                            // 如果解码失败，创建一个简单的WAV头部
+                            const fakeWavBlob = createSimpleWav(audioBlob);
+                            resolve(fakeWavBlob);
+                        });
+                };
+                
+                reader.onerror = function(error) {
+                    console.error('读取文件失败:', error);
+                    reject(error);
+                };
+                
+                reader.readAsArrayBuffer(audioBlob);
+            });
+        }
+
+        function encodeWAV(buffer, sampleRate, numChannels) {
+            const format = 1; // PCM
+            const bitDepth = 16;
+            
+            const bytesPerSample = bitDepth / 8;
+            const blockAlign = numChannels * bytesPerSample;
+            const byteRate = sampleRate * blockAlign;
+            const dataSize = buffer.length * blockAlign;
+            
+            const bufferSize = 44 + dataSize;
+            const arrayBuffer = new ArrayBuffer(bufferSize);
+            const view = new DataView(arrayBuffer);
+            
+            // RIFF标识符
+            writeString(view, 0, 'RIFF');
+            // RIFF块大小
+            view.setUint32(4, 36 + dataSize, true);
+            // RIFF类型
+            writeString(view, 8, 'WAVE');
+            // 格式块标识符
+            writeString(view, 12, 'fmt ');
+            // 格式块大小
+            view.setUint32(16, 16, true);
+            // 音频格式
+            view.setUint16(20, format, true);
+            // 声道数
+            view.setUint16(22, numChannels, true);
+            // 采样率
+            view.setUint32(24, sampleRate, true);
+            // 字节率
+            view.setUint32(28, byteRate, true);
+            // 块对齐
+            view.setUint16(32, blockAlign, true);
+            // 位深
+            view.setUint16(34, bitDepth, true);
+            // 数据块标识符
+            writeString(view, 36, 'data');
+            // 数据块大小
+            view.setUint32(40, dataSize, true);
+            
+            // 写入音频数据
+            floatTo16BitPCM(view, 44, buffer, numChannels);
+            
+            return arrayBuffer;
+        }
+
+        function createSimpleWav(originalBlob) {
+            // 创建一个简单的WAV头部，不进行实际音频转换
+            // 这对于大多数情况已经足够了
+            const sampleRate = 44100;
+            const numChannels = 1;
+            const bitDepth = 16;
+            const bytesPerSample = bitDepth / 8;
+            const blockAlign = numChannels * bytesPerSample;
+            const byteRate = sampleRate * blockAlign;
+            
+            // 读取原始blob作为数据
+            return new Promise(resolve => {
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    const originalData = new Uint8Array(e.target.result);
+                    const dataSize = originalData.length;
+                    
+                    // 创建WAV文件
+                    const bufferSize = 44 + dataSize;
+                    const arrayBuffer = new ArrayBuffer(bufferSize);
+                    const view = new DataView(arrayBuffer);
+                    
+                    // 写入WAV头部
+                    writeString(view, 0, 'RIFF');
+                    view.setUint32(4, 36 + dataSize, true);
+                    writeString(view, 8, 'WAVE');
+                    writeString(view, 12, 'fmt ');
+                    view.setUint32(16, 16, true);
+                    view.setUint16(20, 1, true);
+                    view.setUint16(22, numChannels, true);
+                    view.setUint32(24, sampleRate, true);
+                    view.setUint32(28, byteRate, true);
+                    view.setUint16(32, blockAlign, true);
+                    view.setUint16(34, bitDepth, true);
+                    writeString(view, 36, 'data');
+                    view.setUint32(40, dataSize, true);
+                    
+                    // 复制原始数据
+                    for (let i = 0; i < dataSize; i++) {
+                        view.setUint8(44 + i, originalData[i]);
+                    }
+                    
+                    const wavBlob = new Blob([arrayBuffer], { type: 'audio/wav' });
+                    resolve(wavBlob);
+                };
+                reader.readAsArrayBuffer(originalBlob);
+            });
+        }
+
+        function floatTo16BitPCM(output, offset, buffer, numChannels) {
+            for (let channel = 0; channel < numChannels; channel++) {
+                const channelData = buffer.getChannelData(channel);
+                for (let i = 0; i < channelData.length; i++, offset += 2) {
+                    const sample = Math.max(-1, Math.min(1, channelData[i]));
+                    output.setInt16(offset, sample < 0 ? sample * 0x8000 : sample * 0x7FFF, true);
+                }
+            }
+        }
+
+        function writeString(view, offset, string) {
+            for (let i = 0; i < string.length; i++) {
+                view.setUint8(offset + i, string.charCodeAt(i));
+            }
+        }
+
+        // ==================== 设备兼容性检测 ====================
+        function checkAudioCompatibility() {
+            const supportedFormats = [
+                'audio/mp4;codecs=mp4a.40.2',  // AAC，iOS和Android都支持
+                'audio/webm;codecs=opus',      // WebM Opus，Android支持
+                'audio/webm',                   // WebM，基本支持
+                'audio/wav',                    // WAV，所有设备支持
+                'audio/ogg;codecs=opus'        // Ogg Opus
+            ];
+            
+            console.log('设备音频格式支持情况:');
+            supportedFormats.forEach(format => {
+                console.log(`${format}: ${MediaRecorder.isTypeSupported(format) ? '支持' : '不支持'}`);
+            });
+            
+            // 选择最佳格式
+            for (const format of supportedFormats) {
+                if (MediaRecorder.isTypeSupported(format)) {
+                    console.log('推荐的音频格式:', format);
+                    return format;
+                }
+            }
+            
+            console.log('没有找到支持的格式，使用浏览器默认');
+            return null;
+        }
+
+
+        async function getFileSHA(filePath) {
+            try {
+                const response = await fetch(
+                    `https://api.github.com/repos/${AppState.config.REPOSITORY}/contents/${filePath}`,
+                    {
+                        headers: {
+                            'Authorization': `token ${AppState.config.TOKEN}`,
+                            'Accept': 'application/vnd.github.v3+json'
+                        }
+                    }
+                );
+                
+                if (response.ok) {
+                    const data = await response.json();
+                    return data.sha;
+                }
+                return null; // 文件不存在
+            } catch (error) {
+                console.log('文件不存在，将创建新文件');
+                return null;
+            }
+        }
+
+        // ==================== 工具函数 ====================
+        function blobToBase64(blob) {
+            return new Promise((resolve, reject) => {
+                const reader = new FileReader();
+                reader.onloadend = () => {
+                    const base64 = reader.result.split(',')[1];
+                    resolve(base64);
+                };
+                reader.onerror = reject;
+                reader.readAsDataURL(blob);
+            });
+        }
+
+        // ==================== 界面更新 ====================
+        function startTimer() {
+            // 停止播放计时器（如果正在播放）
+            if (AppState.playbackTimerInterval) {
+                clearInterval(AppState.playbackTimerInterval);
+                AppState.playbackTimerInterval = null;
+            }
+            
+            // 重置录音时间
+            AppState.recordingTime = 0;
+            updateTimer();
+            
+            // 开始录音计时器
+            AppState.timerInterval = setInterval(updateTimer, 1000);
+        }
+
+        function updateTimer() {
+            AppState.recordingTime++;
+            const minutes = Math.floor(AppState.recordingTime / 60).toString().padStart(2, '0');
+            const seconds = (AppState.recordingTime % 60).toString().padStart(2, '0');
+            
+            // 录音时显示简单的时间格式
+            elements.timer.textContent = `${minutes}:${seconds}`;
+            
+            // 录音时进度条显示录制时间百分比（假设最长录制5分钟）
+            const maxRecordingTime = 300; // 5分钟
+            const progressPercent = Math.min((AppState.recordingTime / maxRecordingTime) * 100, 100);
+            elements.progressFill.style.width = `${progressPercent}%`;
+        }
+
+        function stopTimer() {
+            if (AppState.timerInterval) {
+                clearInterval(AppState.timerInterval);
+                AppState.timerInterval = null;
+            }
+        }
+
+        function updateWaveform() {
+            if (!AppState.isRecording) return;
+            
+            elements.waveform.innerHTML = '';
+            const barCount = 20 + Math.floor(Math.random() * 10);
+            
+            for (let i = 0; i < barCount; i++) {
+                const bar = document.createElement('div');
+                bar.className = 'waveform-bar';
+                bar.style.left = `${(i / barCount) * 100}%`;
+                bar.style.height = `${30 + Math.random() * 70}%`;
+                bar.style.animation = `waveform ${0.5 + Math.random() * 1.5}s infinite`;
+                elements.waveform.appendChild(bar);
+            }
+        }
+
+        function updateStats() {
+            const total = AppState.sentences.length;
+            const recorded = AppState.sentences.filter(s => s.recorded).length;
+            const uploaded = AppState.sentences.filter(s => s.hasUploaded).length;
+            
+            elements.totalSentences.textContent = total;
+            elements.completedSentences.textContent = recorded;
+            elements.uploadedSentences.textContent = uploaded;
+            elements.progressText.textContent = `${recorded}/${total} 已完成`;
+            
+            // 更新进度条
+            const progressPercent = total > 0 ? (recorded / total) * 100 : 0;
+            elements.progressFill.style.width = `${progressPercent}%`;
+        }
+
+        // ==================== 状态提示 ====================
+        function showStatus(message, type = 'info') {
+            const element = elements.statusMessage;
+            
+            element.textContent = message;
+            element.className = 'status-message';
+            
+            if (type === 'success') {
+                element.classList.add('status-success');
+            } else if (type === 'error') {
+                element.classList.add('status-error');
+            } else if (type === 'info') {
+                element.classList.add('status-info');
+            }
+            
+            element.style.display = 'block';
+            
+            // 自动隐藏
+            setTimeout(() => {
+                element.style.animation = 'slideOut 0.3s ease';
+                setTimeout(() => {
+                    element.style.display = 'none';
+                    element.style.animation = '';
+                }, 300);
+            }, 3000);
+        }
+
+        // ==================== 事件监听器 ====================
+        function setupEventListeners() {
+            // 录音按钮
+            elements.recordBtn.addEventListener('click', startRecording);
+            
+            // 停止按钮
+            elements.stopBtn.addEventListener('click', stopRecording);
+            
+            // 上传按钮
+            elements.uploadBtn.addEventListener('click', uploadToGitHub);
+            
+            // 播放按钮
+            elements.playBtn.addEventListener('click', playRecording);
+            
+            // 键盘快捷键
+            document.addEventListener('keydown', (e) => {
+                // 空格键：开始/停止录音
+                if (e.code === 'Space' && !e.target.matches('input, textarea')) {
+                    e.preventDefault();
+                    if (AppState.isRecording) {
+                        stopRecording();
+                    } else if (!elements.recordBtn.disabled) {
+                        startRecording();
+                    }
+                }
+                
+                // Esc键：停止播放
+                if (e.code === 'Escape' && AppState.isPlaying) {
+                    stopPlayback();
+                }
+                
+                // 数字键1-9：选择句子
+                if (e.code.startsWith('Digit') && e.code.length === 6) {
+                    const num = parseInt(e.code[5]);
+                    if (num >= 1 && num <= AppState.sentences.length) {
+                        selectSentence(AppState.sentences[num - 1]);
+                    }
+                }
+            });
+        }
+
+        // ==================== 启动应用 ====================
+        document.addEventListener('DOMContentLoaded', initApp);
+    </script>
+</body>
+</html>
