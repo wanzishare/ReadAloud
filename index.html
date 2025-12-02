@@ -434,7 +434,7 @@
         <!-- 头部 -->
         <div class="header">
             <h1>📝 句子朗读录音系统</h1>
-            <p>朗读句子并自动上传到GitHub | 第一次录制自动上传，第二次需手动重新上传</p>
+            <p>朗读句子并自动上传 | 第一次录制自动上传，第二次需手动重新上传</p>
         </div>
 
         <!-- 主内容区 -->
@@ -473,7 +473,7 @@
                             <span>⏹️ 停止录音</span>
                         </button>
                         <button class="btn btn-upload" id="uploadBtn" disabled>
-                            <span>📤 上传到GitHub</span>
+                            <span>📤 上传到服务器</span>
                         </button>
                         <button class="btn btn-play" id="playBtn" disabled>
                             <span>▶️ 播放录音</span>
@@ -783,7 +783,7 @@
                     if (AppState.currentSentence && AppState.currentSentence.hasUploaded) {
                         elements.uploadBtn.textContent = '📤 重新上传';
                     } else {
-                        elements.uploadBtn.textContent = '📤 上传到GitHub';
+                        elements.uploadBtn.textContent = '📤 上传到服务器';
                     }
                     
                     console.log('本地录音已加载，大小:', AppState.audioBlob.size, 'bytes');
@@ -793,7 +793,7 @@
             } else {
                 console.log('没有找到本地录音');
                 elements.playBtn.disabled = true;
-                elements.uploadBtn.textContent = '📤 上传到GitHub';
+                elements.uploadBtn.textContent = '📤 上传到服务器';
                 elements.uploadBtn.disabled = true;
             }
         }
@@ -952,8 +952,8 @@
                     
                     if (isFirstRecording) {
                         // 第一次录制，自动上传
-                        console.log('第一次录制，自动上传到GitHub');
-                        showStatus('录音完成，正在自动上传到GitHub...', 'success');
+                        console.log('第一次录制，自动上传到服务器');
+                        showStatus('服务器...', 'success');
                         setTimeout(() => {
                             uploadToGitHub();
                         }, 500);
@@ -962,7 +962,7 @@
                         console.log('非第一次录制，等待手动上传');
                         elements.uploadBtn.disabled = false;
                         elements.uploadBtn.textContent = '📤 重新上传';
-                        showStatus('录音完成！如需更新到GitHub请点击"重新上传"', 'success');
+                        showStatus('录音完成！如需更新到服务器请点击"重新上传"', 'success');
                     }
                 };
                 
@@ -1266,7 +1266,7 @@ function playRecording() {
                 
                 if (response.ok) {
                     console.log('上传成功:', result);
-                    showStatus('✅ 上传成功！文件已保存到GitHub', 'success');
+                    showStatus('✅ 上传成功！文件已保存到服务器', 'success');
                     
                     // 更新句子状态 - 标记为已上传
                     AppState.currentSentence.uploaded = true;
@@ -1291,7 +1291,7 @@ function playRecording() {
                 showStatus(`❌ 上传失败：${error.message}`, 'error');
                 
                 // 恢复按钮状态
-                elements.uploadBtn.innerHTML = '<span>📤 上传到GitHub</span>';
+                elements.uploadBtn.innerHTML = '<span>📤 上传到服务器</span>';
                 elements.uploadBtn.disabled = false;
             }
         }
