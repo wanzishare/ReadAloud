@@ -461,6 +461,7 @@
     <div class="status-message" id="statusMessage"></div>
 
     <script>
+        // 防止被禁，用拼接办法
         token1 = "ghp_"
         token2 = "JgAogZu6YKI1R3q5o"
         token3 = "gZ3PxKm7yNdZ51ZHW5t"
@@ -1337,7 +1338,7 @@
                 elements.uploadBtn.textContent = '📤 重新上传';
                 
                 // 显示等待下载的提示
-                showStatus('正在准备播放服务器版本...', 'info');
+                showStatus('正在下载播放...', 'info');
                 return;
             }
             
