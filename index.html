@@ -324,6 +324,58 @@
             margin-top: 5px;
         }
 
+        /* 日期选择器样式 */
+        .date-selector {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin: 20px 40px;
+            padding: 15px 20px;
+            background: linear-gradient(135deg, rgba(102, 126, 234, 0.1) 0%, rgba(118, 75, 162, 0.1) 100%);
+            border-radius: 10px;
+            border: 1px solid rgba(102, 126, 234, 0.2);
+        }
+
+        .date-selector label {
+            font-weight: bold;
+            color: #333;
+            font-size: 16px;
+        }
+
+        .date-selector input[type="date"] {
+            padding: 8px 12px;
+            border: 2px solid #667eea;
+            border-radius: 6px;
+            font-size: 14px;
+            color: #333;
+            background: white;
+            cursor: pointer;
+            flex: 1;
+            max-width: 200px;
+        }
+
+        .date-quick-buttons {
+            display: flex;
+            gap: 8px;
+            margin-left: auto;
+        }
+
+        .date-quick-buttons .btn {
+            padding: 6px 12px;
+            font-size: 12px;
+            border-radius: 4px;
+        }
+
+        .date-quick-buttons .btn-today {
+            background: #667eea;
+            color: white;
+        }
+
+        .date-quick-buttons .btn-yesterday {
+            background: #6c757d;
+            color: white;
+        }
+
         /* 动画 */
         @keyframes slideIn {
             from { top: -50px; opacity: 0; }
@@ -366,6 +418,34 @@
             margin-left: 5px;
         }
 
+        /* 加载指示器 */
+        .loading-indicator {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(255, 255, 255, 0.8);
+            z-index: 9999;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .loading-spinner {
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #667eea;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
         @media (max-width: 768px) {
             .main-content {
                 flex-direction: column;
@@ -378,10 +458,31 @@
             .control-buttons {
                 flex-wrap: wrap;
             }
+            
+            .date-selector {
+                flex-direction: column;
+                align-items: stretch;
+                margin: 20px;
+            }
+            
+            .date-selector input[type="date"] {
+                max-width: none;
+            }
+            
+            .date-quick-buttons {
+                margin-left: 0;
+                justify-content: center;
+                margin-top: 10px;
+            }
         }
     </style>
 </head>
 <body>
+    <!-- 加载指示器 -->
+    <div class="loading-indicator" id="loadingIndicator">
+        <div class="loading-spinner"></div>
+    </div>
+
     <div class="container">
         <!-- 头部 -->
         <div class="header">
@@ -461,20 +562,29 @@
     <div class="status-message" id="statusMessage"></div>
 
     <script>
-        // 防止被禁，用拼接办法
-        token1 = "ghp_"
-        token2 = "JgAogZu6YKI1R3q5o"
-        token3 = "gZ3PxKm7yNdZ51ZHW5t"
         // ==================== 配置文件 ====================
-        // 在这里配置你的GitHub信息
+        // 注释掉GitHub配置，因为主要使用Gitee
         const GITHUB_CONFIG = {
-            // 你的GitHub仓库，格式：用户名/仓库名
+            // 保留但不使用
             REPOSITORY: 'wanzishare/ReadAloud',
-            
-            // 你的GitHub Personal Access Token（需要repo权限）
-            TOKEN: token1 + token2 + token3
+            TOKEN: ''
         };
-        
+
+        // 主要使用Gitee配置
+        const GITEE_CONFIG = {
+            // 你的Gitee仓库，格式：用户名/仓库名
+            REPOSITORY: 'bufan1990/read-aloud',
+            
+            // 你的Gitee Personal Access Token（需要repo权限）
+            TOKEN: 'f62b136877bc9f4a2491f1ef30286857',
+            
+            // Gitee API基础URL
+            API_BASE: 'https://gitee.com/api/v5',
+            
+            // Gitee RAW文件基础URL（用于直接下载文件）
+            RAW_BASE: 'https://gitee.com'
+        };
+
         // 示例句子数据
         const SAMPLE_SENTENCES = [
             { id: 'S001', text: '生活就像一盒巧克力，你永远不知道下一颗是什么味道。', recorded: false, hasUploaded: false },
@@ -499,17 +609,29 @@
             recorder: null,
             timerInterval: null,
             recordingTime: 0,
-            todayDate: new Date().toISOString().split('T')[0], // 当前日期
-            selectedDate: new Date().toISOString().split('T')[0], // 用户选择的日期
-            config: GITHUB_CONFIG,
+            todayDate: (() => {
+                const now = new Date();
+                const year = now.getFullYear();
+                const month = String(now.getMonth() + 1).padStart(2, '0');
+                const day = String(now.getDate()).padStart(2, '0');
+                return `${year}-${month}-${day}`;
+            })(),
+            selectedDate: (() => {
+                const now = new Date();
+                const year = now.getFullYear();
+                const month = String(now.getMonth() + 1).padStart(2, '0');
+                const day = String(now.getDate()).padStart(2, '0');
+                return `${year}-${month}-${day}`;
+            })(),
+            config: GITEE_CONFIG, // 使用Gitee配置
             isPlaying: false,
             currentAudio: null,            
             playbackTimerInterval: null,
             playbackTime: 0,
             audioCurrentTime: 0,
             audioDuration: 0,
-            isDownloading: false, // 是否正在下载
-            lastDownloadTime: null // 上次下载时间
+            isDownloading: false,
+            lastDownloadTime: null
         };
 
         // ==================== DOM元素 ====================
@@ -529,23 +651,53 @@
             completedSentences: document.getElementById('completedSentences'),
             uploadedSentences: document.getElementById('uploadedSentences'),
             playbackIndicator: document.getElementById('playbackIndicator'),
-            statusMessage: document.getElementById('statusMessage')
+            statusMessage: document.getElementById('statusMessage'),
+            loadingIndicator: document.getElementById('loadingIndicator')
         };
+
+        // 添加一个日期验证和修复函数
+        function validateAndFixDates() {
+            console.log('当前日期状态:', {
+                todayDate: AppState.todayDate,
+                selectedDate: AppState.selectedDate,
+                localToday: (() => {
+                    const now = new Date();
+                    return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+                })()
+            });
+            
+            // 如果selectedDate比今天晚，调整为今天
+            if (AppState.selectedDate > AppState.todayDate) {
+                console.log('警告：选择的日期在未来，调整为今天');
+                AppState.selectedDate = AppState.todayDate;
+            }
+            
+            // 如果selectedDate比30天前还早，调整为30天前
+            const thirtyDaysAgo = new Date();
+            thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+            const minDateStr = `${thirtyDaysAgo.getFullYear()}-${String(thirtyDaysAgo.getMonth() + 1).padStart(2, '0')}-${String(thirtyDaysAgo.getDate()).padStart(2, '0')}`;
+            
+            if (AppState.selectedDate < minDateStr) {
+                console.log('警告：选择的日期超过30天限制，调整为30天前');
+                AppState.selectedDate = minDateStr;
+            }
+        }
 
         // ==================== 初始化应用 ====================
         function initApp() {
             console.log('初始化应用...');
-            updateWaveform()
             
             // 检查音频兼容性
             checkAudioCompatibility();
             
-            // 检查GitHub配置
+            // 检查Gitee配置
             if (!AppState.config.REPOSITORY || !AppState.config.TOKEN) {
-                showStatus('请先配置GitHub信息！修改代码中的GITHUB_CONFIG变量。', 'error');
+                showStatus('请先配置Gitee信息！', 'error');
                 return;
             }
-            
+            // 1. 验证和修复日期
+            validateAndFixDates();
+
             // 1. 添加日期选择器
             createDateSelector();
             
@@ -561,18 +713,48 @@
             // 5. 设置事件监听器
             setupEventListeners();
             
-            // 6. 默认选中第一个句子
-            // if (AppState.sentences.length > 0) {
-            //     selectSentence(AppState.sentences[0]);
-            // }
+            showStatus('系统已就绪，可以开始录音', 'info');
             
-            //showStatus('系统已就绪，可以开始录音', 'success');
-            showStatus('加载中...', 'info');
-            
-            // 7. 在页面完全加载后，异步检查服务器状态
+            // 6. 在页面完全加载后，异步检查服务器状态
             setTimeout(() => {
                 checkServerFilesInBackground();
             }, 100);
+        }
+
+        // 添加调试函数来检查日期
+        function debugDateInfo() {
+            console.log('=== 日期信息调试 ===');
+            
+            // 当前时间
+            const now = new Date();
+            console.log('当前时间对象:', now);
+            console.log('UTC时间:', now.toISOString());
+            console.log('本地时间:', now.toString());
+            
+            // 各种格式
+            console.log('ISO分割:', now.toISOString().split('T')[0]);
+            console.log('本地格式化:', 
+                now.getFullYear() + '-' + 
+                String(now.getMonth() + 1).padStart(2, '0') + '-' + 
+                String(now.getDate()).padStart(2, '0')
+            );
+            
+            // 检查日期输入
+            const dateInput = document.getElementById('datePicker');
+            if (dateInput) {
+                console.log('日期输入框:', {
+                    value: dateInput.value,
+                    min: dateInput.min,
+                    max: dateInput.max,
+                    step: dateInput.step
+                });
+            }
+            
+            // 检查AppState
+            console.log('AppState日期:', {
+                todayDate: AppState.todayDate,
+                selectedDate: AppState.selectedDate
+            });
         }
 
         // 创建日期选择器
@@ -580,122 +762,99 @@
             // 创建日期选择器容器
             const dateSelector = document.createElement('div');
             dateSelector.className = 'date-selector';
-            dateSelector.style.cssText = `
-                display: flex;
-                align-items: center;
-                gap: 10px;
-                margin-bottom: 20px;
-                padding: 10px;
-                background: #f8f9fa;
-                border-radius: 10px;
-                border: 1px solid #eaeaea;
-            `;
             
             // 日期选择器标签
             const label = document.createElement('label');
             label.textContent = '📅 选择日期:';
-            label.style.fontWeight = 'bold';
-            label.style.color = '#333';
+            label.htmlFor = 'datePicker';
             
             // 日期输入框
             const dateInput = document.createElement('input');
             dateInput.type = 'date';
             dateInput.id = 'datePicker';
             dateInput.value = AppState.selectedDate;
-            dateInput.style.cssText = `
-                padding: 8px 12px;
-                border: 2px solid #667eea;
-                border-radius: 6px;
-                font-size: 14px;
-                color: #333;
-                background: white;
-                cursor: pointer;
-            `;
             
-            // 计算最近30天的范围
+            // 修复日期范围计算
+            const getLocalDateString = (date) => {
+                // 使用本地时间而不是UTC时间
+                const year = date.getFullYear();
+                const month = String(date.getMonth() + 1).padStart(2, '0');
+                const day = String(date.getDate()).padStart(2, '0');
+                return `${year}-${month}-${day}`;
+            };
+            
+            // 计算日期范围
             const today = new Date();
-            const maxDate = today.toISOString().split('T')[0];
+            const maxDate = getLocalDateString(today); // 今天
             const minDate = new Date(today);
-            minDate.setDate(today.getDate() - 30);
-            const minDateStr = minDate.toISOString().split('T')[0];
+            minDate.setDate(today.getDate() - 30); // 30天前
+            const minDateStr = getLocalDateString(minDate);
+            
+            console.log('日期范围:', {
+                min: minDateStr,
+                max: maxDate,
+                today: maxDate,
+                currentSelected: AppState.selectedDate
+            });
             
             dateInput.max = maxDate;
             dateInput.min = minDateStr;
             
             // 日期变化事件
             dateInput.addEventListener('change', async (e) => {
-                AppState.selectedDate = e.target.value;
-                console.log('切换到日期:', AppState.selectedDate);
+                const newDate = e.target.value;
+                if (newDate === AppState.selectedDate) return;
+                
+                console.log('切换到日期:', newDate);
+                showLoading(true);
                 
                 // 停止正在进行的操作
                 if (AppState.isRecording) stopRecording();
                 if (AppState.isPlaying) stopPlayback();
+                
+                // 保存当前日期的状态
+                saveCurrentState();
+                
+                // 更新日期
+                AppState.selectedDate = newDate;
                 
                 // 加载新日期的数据
                 await loadSentencesForSelectedDate();
                 renderSentenceList();
                 updateStats();
                 
-                // 清除当前选中的句子
-                AppState.currentSentence = null;
-                AppState.audioBlob = null;
-                
-                // 更新显示
-                elements.currentSentenceId.textContent = '';
-                elements.currentSentenceText.textContent = '请选择日期中的一句开始朗读录音';
-                elements.playBtn.disabled = true;
-                elements.uploadBtn.disabled = true;
-                elements.recordBtn.disabled = false;
+                // 重置当前句子
+                resetCurrentSentence();
                 
                 // 检查服务器文件
                 checkServerFilesInBackground();
                 
+                showLoading(false);
                 showStatus(`已切换到 ${AppState.selectedDate} 的数据`, 'info');
             });
             
-            // 添加快捷按钮
+            // 添加快捷按钮容器
             const quickButtons = document.createElement('div');
-            quickButtons.style.cssText = `
-                display: flex;
-                gap: 8px;
-                margin-left: auto;
-            `;
+            quickButtons.className = 'date-quick-buttons';
             
             // 今天按钮
             const todayBtn = document.createElement('button');
             todayBtn.textContent = '今天';
-            todayBtn.className = 'btn';
-            todayBtn.style.cssText = `
-                padding: 6px 12px;
-                background: #667eea;
-                color: white;
-                border: none;
-                border-radius: 4px;
-                cursor: pointer;
-                font-size: 12px;
-            `;
+            todayBtn.className = 'btn btn-today';
             todayBtn.onclick = () => {
-                dateInput.value = AppState.todayDate;
+                const todayStr = getLocalDateString(new Date());
+                dateInput.value = todayStr;
                 dateInput.dispatchEvent(new Event('change'));
             };
             
             // 昨天按钮
             const yesterdayBtn = document.createElement('button');
             yesterdayBtn.textContent = '昨天';
-            yesterdayBtn.className = 'btn';
-            yesterdayBtn.style.cssText = `
-                padding: 6px 12px;
-                background: #6c757d;
-                color: white;
-                border: none;
-                border-radius: 4px;
-                cursor: pointer;
-                font-size: 12px;
-            `;
-            const yesterday = new Date();
-            yesterday.setDate(yesterday.getDate() - 1);
-            const yesterdayStr = yesterday.toISOString().split('T')[0];
+            yesterdayBtn.className = 'btn btn-yesterday';
             yesterdayBtn.onclick = () => {
+                const yesterday = new Date();
+                yesterday.setDate(yesterday.getDate() - 1);
+                const yesterdayStr = getLocalDateString(yesterday);
                 dateInput.value = yesterdayStr;
                 dateInput.dispatchEvent(new Event('change'));
             };
@@ -710,6 +869,32 @@
             // 插入到标题下面
             const header = document.querySelector('.header');
             header.parentNode.insertBefore(dateSelector, header.nextSibling);
+            
+            return dateInput;
+        }
+
+        // 保存当前状态
+        function saveCurrentState() {
+            if (AppState.sentences.length > 0) {
+                const key = `sentences_${AppState.selectedDate}`;
+                localStorage.setItem(key, JSON.stringify(AppState.sentences));
+                console.log(`保存 ${AppState.selectedDate} 的数据到本地存储`);
+            }
+        }
+
+        // 重置当前句子
+        function resetCurrentSentence() {
+            AppState.currentSentence = null;
+            AppState.audioBlob = null;
+            
+            elements.currentSentenceId.textContent = '';
+            elements.currentSentenceText.textContent = '请选择日期中的一句开始朗读录音';
+            elements.playBtn.disabled = true;
+            elements.uploadBtn.disabled = true;
+            elements.recordBtn.disabled = false;
+            elements.stopBtn.disabled = true;
+            elements.timer.textContent = '00:00';
+            elements.progressFill.style.width = '0%';
         }
 
         // 加载指定日期的句子数据
@@ -725,7 +910,11 @@
                     console.log(`从本地存储加载 ${AppState.selectedDate} 的句子数据，共`, AppState.sentences.length, '条');
                 } catch (e) {
                     console.warn('本地存储数据损坏，使用默认句子');
-                    AppState.sentences = [...SAMPLE_SENTENCES];
+                    AppState.sentences = SAMPLE_SENTENCES.map(s => ({
+                        ...s,
+                        recorded: false,
+                        hasUploaded: false
+                    }));
                 }
             } else {
                 // 总是从默认句子复制结构，清除录制状态
@@ -746,7 +935,7 @@
                 }
             });
             
-            // 检查本地录音文件（使用选择的日期）
+            // 检查本地录音文件
             await checkDateRecordings();
             
             // 保存到本地存储
@@ -762,7 +951,6 @@
                 const audioData = localStorage.getItem(audioKey);
                 
                 if (audioData) {
-                    console.log(`找到本地录音: ${sentence.id}`);
                     sentence.recorded = true;
                     sentence.lastRecorded = AppState.selectedDate;
                 } else {
@@ -778,226 +966,48 @@
             localStorage.setItem(key, JSON.stringify(AppState.sentences));
         }
 
-        // 在 checkServerFilesInBackground 函数中，修改这部分：
-        async function checkServerFilesInBackground() {
-            console.log(`开始在后台检查 ${AppState.selectedDate} 的服务器状态...`);
-            //showStatus('正在检查服务器文件状态...', 'info');
-            
-            // 立即显示一个固定的进度提示
-            //showStatus(`正在检查 ${AppState.selectedDate} 的服务器文件...`, 'info');
-            
-            try {
-                let updatedCount = 0;
-                
-                // 创建一个简单的进度指示器
-                const totalSentences = AppState.sentences.length;
-                let processed = 0;
-                
-                for (let i = 0; i < AppState.sentences.length; i++) {
-                    const sentence = AppState.sentences[i];
-                    processed++;
-                    
-                    try {
-                        const fileExists = await checkFileExistsOnServer(sentence.id);
-                        const wasUploaded = sentence.hasUploaded;
-                        
-                        // 重要：直接修改内存中的状态
-                        if (fileExists !== sentence.hasUploaded) {
-                            sentence.hasUploaded = fileExists;
-                            updatedCount++;
-                            
-                            console.log(`句子 ${sentence.id} 状态变化: ${wasUploaded} -> ${fileExists}`);
-                            
-                            // 立即更新UI - 使用更可靠的方法
-                            updateSentenceItemInUI(sentence);
-                        }
-                        
-                    } catch (error) {
-                        console.warn(`检查句子 ${sentence.id} 失败:`, error);
-                    }
-                    
-                    // 更新进度显示（可选）
-                    if (processed % 3 === 0) {
-                        console.log(`进度: ${processed}/${totalSentences}`);
-                    }
-                }
-                
-                // 保存更新后的状态
-                saveSentencesForSelectedDate();
-                
-                // 更新统计信息
-                updateStats();
-                
-                console.log(`后台检查完成，更新了 ${updatedCount} 条记录`);
-                
-                if (updatedCount > 0) {
-                    showStatus(`发现 ${updatedCount} 个已上传文件`, 'success');
-                } else {
-                    showStatus('加载完成', 'success');
-                }
-                
-            } catch (error) {
-                console.error('后台检查出错:', error);
-                showStatus('加载失败', 'error');
-            }
-        }
-
-        // 添加一个新的UI更新函数
-        function updateSentenceItemInUI(sentence) {
-            console.log(`更新句子 ${sentence.id} 的UI状态: hasUploaded=${sentence.hasUploaded}`);
-            
-            // 方法1：通过ID选择器查找
-            let item = null;
-            
-            // 查找所有句子项
-            const items = document.querySelectorAll('.sentence-item');
-            
-            for (const element of items) {
-                // 检查元素是否包含这个句子的ID
-                const idElement = element.querySelector('.sentence-meta span:first-child');
-                if (idElement && idElement.textContent.trim() === sentence.id) {
-                    item = element;
-                    break;
-                }
-            }
-            
-            if (!item) {
-                console.warn(`未找到句子 ${sentence.id} 的DOM元素`);
-                
-                // 如果没找到，尝试重新渲染整个列表
-                setTimeout(() => {
-                    renderSentenceList();
-                    updateStats();
-                }, 100);
-                return;
-            }
-            
-            // 更新状态徽章
-            const badge = item.querySelector('.status-badge');
-            const textElement = item.querySelector('.sentence-text');
-            
-            if (!badge || !textElement) {
-                console.warn(`句子 ${sentence.id} 的DOM元素不完整`);
-                return;
-            }
-            
-            // 确定新的状态
-            let statusClass, statusText, prefix = '';
-            
-            if (sentence.hasUploaded) {
-                statusClass = 'status-uploaded';
-                statusText = '✓ 已上传';
-                prefix = '🌐 ';
-            } else if (sentence.recorded) {
-                statusClass = 'status-recorded';
-                statusText = '✓ 已录制';
-            } else {
-                statusClass = 'status-pending';
-                statusText = '待录制';
-            }
-            
-            // 更新徽章
-            badge.className = `status-badge ${statusClass}`;
-            badge.textContent = statusText;
-            
-            // 更新文本
-            const baseText = sentence.text;
-            if (sentence.hasUploaded) {
-                if (!textElement.textContent.startsWith('🌐 ')) {
-                    textElement.textContent = '🌐 ' + baseText;
-                }
-            } else {
-                // 移除前缀
-                textElement.textContent = baseText;
-            }
-            
-            console.log(`句子 ${sentence.id} UI更新完成: ${statusText}`);
-        }
-
-        function updateItemUI(item, sentence) {
-            const badge = item.querySelector('.status-badge');
-            const textElement = item.querySelector('.sentence-text');
-            
-            if (!badge || !textElement) {
-                console.warn(`句子 ${sentence.id} 的DOM元素不完整`);
-                return;
-            }
-            
-            // 确定新的状态
-            let statusClass, statusText, prefix = '';
-            
-            if (sentence.recorded) {
-                if (sentence.hasUploaded) {
-                    statusClass = 'status-uploaded';
-                    statusText = '✓ 已上传';
-                    prefix = '🌐 ';
-                } else {
-                    statusClass = 'status-recorded';
-                    statusText = '✓ 已录制';
-                }
-            } else {
-                if (sentence.hasUploaded) {
-                    statusClass = 'status-uploaded';
-                    statusText = '已上传';
-                    prefix = '🌐 ';
-                } else {
-                    statusClass = 'status-pending';
-                    statusText = '待录制';
-                }
-            }
-            
-            // 更新徽章
-            badge.className = `status-badge ${statusClass}`;
-            badge.textContent = statusText;
-            
-            // 更新文本前缀
-            const currentText = textElement.textContent;
-            const baseText = sentence.text;
-            
-            if (prefix && !currentText.startsWith('🌐 ')) {
-                textElement.textContent = prefix + baseText;
-            } else if (!prefix && currentText.startsWith('🌐 ')) {
-                textElement.textContent = baseText;
-            }
-            
-            // 如果需要，同时更新当前选中的句子的显示
-            if (AppState.currentSentence && AppState.currentSentence.id === sentence.id) {
-                AppState.currentSentence.hasUploaded = sentence.hasUploaded;
-                
-                // 更新上传按钮状态
-                if (sentence.hasUploaded) {
-                    elements.uploadBtn.textContent = '📤 重新上传';
-                } else {
-                    elements.uploadBtn.textContent = '📤 上传到服务器';
-                }
-            }
-        }
-
-        async function checkFileExistsOnServer(sentenceId) {
-            // ✅ 使用选择的日期，而不是今天的日期
+        // 修复后的文件检查函数
+        async function checkFileExistsOnServer(sentenceId) {    
             const fileName = `${AppState.selectedDate}_${sentenceId}.wav`;
             const filePath = `recordings/${AppState.selectedDate}/${fileName}`;
             
+            console.log(`检查Gitee文件是否存在: ${filePath}`);
+            
             try {
                 const response = await fetch(
-                    `https://api.github.com/repos/${AppState.config.REPOSITORY}/contents/${filePath}`,
-                    {
+                    `${GITEE_CONFIG.API_BASE}/repos/${GITEE_CONFIG.REPOSITORY}/contents/${filePath}?access_token=${GITEE_CONFIG.TOKEN}`,{
                         method: 'GET',
+                        mode: 'cors',
                         headers: {
-                            'Authorization': `token ${AppState.config.TOKEN}`,
-                            'Accept': 'application/vnd.github.v3+json',
-                            'User-Agent': 'AudioRecordingApp/1.0'
+                            'Accept': 'application/json'
                         },
-                        // 设置超时时间
                         signal: AbortSignal.timeout(5000)
                     }
                 );
                 
+                console.log(`Gitee API响应状态: ${response.status}`);
+                
                 if (response.status === 200) {
-                    console.log(`✅ 文件存在: ${filePath}`);
-                    return true;
+                    const responseData = await response.json();
+                    
+                    // 如果返回的是空数组 []，表示文件不存在
+                    if (Array.isArray(responseData) && responseData.length === 0) {
+                        console.log(`❌ 文件不存在（返回空数组）: ${filePath}`);
+                        return false;
+                    }
+                    
+                    // 如果返回的是对象且有sha字段，表示文件存在
+                    if (responseData && typeof responseData === 'object' && responseData.sha) {
+                        console.log(`✅ 文件存在: ${filePath}`);
+                        return true;
+                    }
+                    
+                    // 其他情况视为文件不存在
+                    console.log(`❌ 无法判断文件是否存在，响应格式: ${typeof responseData}`);
+                    return false;
+                    
                 } else if (response.status === 404) {
-                    console.log(`❌ 文件不存在: ${filePath}`);
+                    console.log(`❌ 文件不存在（404）: ${filePath}`);
                     return false;
                 } else {
                     console.warn(`⚠️ 检查文件 ${filePath} 返回状态码: ${response.status}`);
@@ -1014,12 +1024,150 @@
             }
         }
 
+        async function checkServerFilesInBackground() {
+            console.log(`开始在后台检查 ${AppState.selectedDate} 的服务器状态...`);
+            
+            try {
+                let updatedCount = 0;
+                
+                for (let i = 0; i < AppState.sentences.length; i++) {
+                    const sentence = AppState.sentences[i];
+                    
+                    try {
+                        const fileExists = await checkFileExistsOnServer(sentence.id);
+                        const wasUploaded = sentence.hasUploaded;
+                        
+                        if (fileExists !== sentence.hasUploaded) {
+                            sentence.hasUploaded = fileExists;
+                            updatedCount++;
+                            
+                            console.log(`句子 ${sentence.id} 状态变化: ${wasUploaded} -> ${fileExists}`);
+                            
+                            // 更新UI
+                            updateSentenceItemInUI(sentence);
+                        }
+                        
+                    } catch (error) {
+                        console.warn(`检查句子 ${sentence.id} 失败:`, error);
+                    }
+                }
+                
+                // 保存更新后的状态
+                saveSentencesForSelectedDate();
+                
+                // 更新统计信息
+                updateStats();
+                
+                console.log(`后台检查完成，更新了 ${updatedCount} 条记录`);
+                
+                if (updatedCount > 0) {
+                    showStatus(`发现 ${updatedCount} 个已上传文件`, 'success');
+                }
+                
+            } catch (error) {
+                console.error('后台检查出错:', error);
+                showStatus('检查服务器文件失败', 'error');
+            }
+        }
+
+        // 更新句子项UI
+        function updateSentenceItemInUI(sentence) {
+            const items = document.querySelectorAll('.sentence-item');
+            
+            for (const item of items) {
+                const idElement = item.querySelector('.sentence-meta span:first-child');
+                if (idElement && idElement.textContent.trim() === sentence.id) {
+                    updateItemUI(item, sentence);
+                    return;
+                }
+            }
+            
+            // 如果没找到，重新渲染整个列表
+            renderSentenceList();
+            updateStats();
+        }
+
+        // 辅助函数：更新单个项目的UI
+        function updateItemUI(item, sentence) {
+            const badge = item.querySelector('.status-badge');
+            const textElement = item.querySelector('.sentence-text');
+            
+            if (!badge || !textElement) return;
+            
+            // 确定状态
+            let statusClass, statusText;
+            let prefix = '';
+            
+            if (sentence.hasUploaded) {
+                statusClass = 'status-uploaded';
+                statusText = '✓ 已上传';
+                prefix = '🌐 ';
+            } else if (sentence.recorded) {
+                statusClass = 'status-recorded';
+                statusText = '✓ 已录制';
+                // 已录制但未上传的句子不加前缀
+                prefix = '';
+            } else {
+                statusClass = 'status-pending';
+                statusText = '待录制';
+                prefix = '';
+            }
+            
+            // 更新徽章
+            badge.className = `status-badge ${statusClass}`;
+            badge.textContent = statusText;
+            
+            // 更新文本 - 只对已上传的句子添加前缀
+            if (prefix && !textElement.textContent.startsWith('🌐 ')) {
+                textElement.textContent = prefix + sentence.text;
+            } else if (!prefix && textElement.textContent.startsWith('🌐 ')) {
+                textElement.textContent = sentence.text;
+            }
+            
+            // 如果需要，同时更新当前选中的句子的显示
+            if (AppState.currentSentence && AppState.currentSentence.id === sentence.id) {
+                AppState.currentSentence.hasUploaded = sentence.hasUploaded;
+                
+                // 更新上传按钮状态
+                if (sentence.hasUploaded) {
+                    elements.uploadBtn.textContent = '📤 重新上传';
+                } else {
+                    elements.uploadBtn.textContent = '📤 上传到服务器';
+                }
+            }
+        }
+
+        async function getGiteeFileSHA(filePath) {
+            try {
+                const response = await fetch(
+            `${GITEE_CONFIG.API_BASE}/repos/${GITEE_CONFIG.REPOSITORY}/contents/${filePath}?access_token=${GITEE_CONFIG.TOKEN}`,
+                    {
+                        headers: {
+                            'Accept': 'application/json'
+                        }
+                    }
+                );
+                
+                if (response.ok) {
+                    const data = await response.json();
+                    // 检查是否是空数组
+                    if (Array.isArray(data) && data.length === 0) {
+                        return null;
+                    }
+                    return data.sha;
+                }
+                return null;
+            } catch (error) {
+                console.log('Gitee文件不存在或网络错误:', error);
+                return null;
+            }
+        }
+
         function renderSentenceList() {
             console.log('渲染句子列表，共', AppState.sentences.length, '条');
             
             elements.sentencesContainer.innerHTML = '';
             
-            // 确保数据是最新的
             AppState.sentences.forEach((sentence) => {
                 const item = document.createElement('div');
                 item.className = `sentence-item ${sentence === AppState.currentSentence ? 'active' : ''}`;
@@ -1056,171 +1204,124 @@
             console.log('句子列表渲染完成');
         }
 
-        // ==================== 新增自动准备播放函数 ====================
-        async function autoPreparePlayback(sentenceId) {
-            console.log('自动准备播放已上传的句子:', sentenceId);
+        // 修复后的下载函数，只使用Gitee
+        async function downloadAudioFromGitee(sentenceId) {
+            console.log('从Gitee下载音频:', sentenceId);
             
-            //showStatus('正在从服务器下载音频...', 'info');
-            
-            try {
-                // 重要：对于已上传的句子，总是从GitHub下载最新版本
-                const audioBlob = await downloadAudioFromGitHub(sentenceId);
-                
-                if (audioBlob) {
-                    // 设置音频blob（覆盖内存中的任何旧版本）
-                    AppState.audioBlob = audioBlob;
-                    
-                    // 同时更新本地缓存
-                    cacheAudioToLocal(sentenceId, audioBlob);
-                    
-                    // 启用播放按钮
-                    elements.playBtn.disabled = false;
-                    elements.uploadBtn.disabled = false;
-                    elements.uploadBtn.textContent = '📤 重新上传';
-                    
-                    console.log('已从服务器下载最新音频，准备播放');
-                    //showStatus('自动播放...', 'success');
-                    
-                    // 重要：立即自动播放！
-                    setTimeout(() => {
-                        playRecording();
-                    }, 300);
-                } else {
-                    console.log('无法从服务器下载，检查本地是否有旧版本');
-                    checkExistingRecording(sentence.id ,autoPlay = true);
-                    
-                    // 如果有本地版本，播放它
-                    if (AppState.audioBlob) {
-                        setTimeout(() => {
-                            playRecording();
-                        }, 300);
-                    }
-                }
-            } catch (error) {
-                console.error('准备播放失败:', error);
-                showStatus('从服务器下载失败，尝试本地播放', 'error');
-                
-                // 降级到检查本地录音
-                checkExistingRecording(sentenceId);
-                
-                // 如果有本地版本，播放它
-                if (AppState.audioBlob) {
-                    setTimeout(() => {
-                        playRecording();
-                    }, 500);
-                }
-            }
-        }
-
-        // ==================== 新增从GitHub下载音频函数 ====================
-        async function downloadAudioFromGitHub(sentenceId) {
-            console.log('从GitHub下载最新音频:', sentenceId);
-            
-            // 使用选择日期的路径
             const fileName = `${AppState.selectedDate}_${sentenceId}.wav`;
             const filePath = `recordings/${AppState.selectedDate}/${fileName}`;
             
             try {
-                // 方法1：使用GitHub raw URL（最可靠）
-                const rawUrl = `https://raw.githubusercontent.com/${AppState.config.REPOSITORY}/main/${filePath}`;
+                // 直接使用Gitee API下载，避免跨域问题
+                const apiUrl = `${GITEE_CONFIG.API_BASE}/repos/${GITEE_CONFIG.REPOSITORY}/contents/${filePath}?access_token=${GITEE_CONFIG.TOKEN}`;
                 
-                console.log('使用raw URL下载最新音频:', rawUrl);
+                console.log('使用Gitee API下载:', apiUrl);
                 
-                const response = await fetch(rawUrl, {
+                const response = await fetch(apiUrl, {
                     method: 'GET',
                     mode: 'cors',
-                    cache: 'no-store', // 不使用缓存，确保获取最新版本
+                    cache: 'no-store',
                     headers: {
-                        'Accept': 'audio/wav, audio/*'
+                        'Accept': 'application/json'
                     },
-                    signal: AbortSignal.timeout(10000) // 10秒超时
+                    signal: AbortSignal.timeout(10000)
                 });
                 
-                if (response.ok) {
-                    const audioBlob = await response.blob();
-                    
-                    // 验证音频文件
-                    if (audioBlob && audioBlob.size > 0) {
-                        console.log('✅ 从GitHub下载音频成功，大小:', audioBlob.size, 'bytes');
-                        
-                        // 确保MIME类型正确
-                        let finalBlob = audioBlob;
-                        if (!audioBlob.type.includes('audio')) {
-                            console.log('⚠️ 文件MIME类型不是音频，修复为audio/wav');
-                            finalBlob = new Blob([audioBlob], { type: 'audio/wav' });
-                        }
-                        
-                        return finalBlob;
-                    } else {
-                        console.warn('❌ 下载的音频文件为空');
-                        return null;
-                    }
-                } else {
-                    console.warn(`❌ 无法下载文件，状态码: ${response.status}`);
-                    
-                    // 备用方法：尝试使用GitHub API
-                    console.log('尝试备用下载方法...');
-                    return await downloadViaGitHubAPI(filePath);
+                if (!response.ok) {
+                    console.error('下载失败，状态码:', response.status);
+                    return null;
                 }
+                
+                const fileData = await response.json();
+                
+                // Gitee返回的数据结构
+                if (fileData.content && fileData.encoding === 'base64') {
+                    // 解码base64
+                    const binaryString = atob(fileData.content);
+                    const bytes = new Uint8Array(binaryString.length);
+                    for (let i = 0; i < binaryString.length; i++) {
+                        bytes[i] = binaryString.charCodeAt(i);
+                    }
+                    
+                    // 尝试确定正确的MIME类型
+                    let mimeType = 'audio/wav';
+                    
+                    // 检查文件头部信息，确定实际格式
+                    if (bytes.length > 4) {
+                        // 检查是否为WAV文件（RIFF头部）
+                        if (bytes[0] === 0x52 && bytes[1] === 0x49 && bytes[2] === 0x46 && bytes[3] === 0x46) {
+                            mimeType = 'audio/wav';
+                        } 
+                        // 检查是否为WebM文件
+                        else if (bytes[0] === 0x1A && bytes[1] === 0x45 && bytes[2] === 0xDF && bytes[3] === 0xA3) {
+                            mimeType = 'audio/webm';
+                        }
+                        // 检查是否为Ogg文件
+                        else if (bytes[0] === 0x4F && bytes[1] === 0x67 && bytes[2] === 0x67 && bytes[3] === 0x53) {
+                            mimeType = 'audio/ogg';
+                        }
+                    }
+                    
+                    console.log('检测到的音频格式:', mimeType);
+                    const audioBlob = new Blob([bytes], { type: mimeType });
+                    console.log('✅ 从Gitee下载成功，大小:', audioBlob.size, 'bytes');
+                    
+                    return audioBlob;
+                }
+                
+                console.warn('❌ 无法从Gitee下载音频：数据格式不正确');
+                return null;
+                
             } catch (error) {
-                console.error('❌ 从GitHub下载音频失败:', error);
+                console.error('❌ 从Gitee下载音频失败:', error);
                 return null;
             }
         }
 
-        // 备用下载方法：通过GitHub API
-        async function downloadViaGitHubAPI(filePath) {
-            try {
-                const response = await fetch(
-                    `https://api.github.com/repos/${AppState.config.REPOSITORY}/contents/${filePath}`,
-                    {
-                        method: 'GET',
-                        headers: {
-                            'Authorization': `token ${AppState.config.TOKEN}`,
-                            'Accept': 'application/vnd.github.v3.raw'
-                        },
-                        signal: AbortSignal.timeout(8000)
-                    }
-                );
-                
-                if (response.ok) {
-                    const audioBlob = await response.blob();
-                    if (audioBlob && audioBlob.size > 0) {
-                        console.log('✅ 通过GitHub API下载成功');
-                        return new Blob([audioBlob], { type: 'audio/wav' });
-                    }
-                }
-                return null;
-            } catch (error) {
-                console.error('GitHub API下载也失败:', error);
-                return null;
-            }
-        }
-        // ==================== 新增音频缓存函数 ====================
+        // 音频缓存函数
         function cacheAudioToLocal(sentenceId, audioBlob) {
             try {
                 const audioKey = `audio_${AppState.selectedDate}_${sentenceId}`;
+                
+                // 检查Blob是否有效
+                if (!audioBlob || audioBlob.size === 0) {
+                    console.warn('音频Blob无效，跳过缓存');
+                    return;
+                }
+                
+                // 确保有正确的MIME类型
+                let mimeType = audioBlob.type;
+                if (!mimeType || mimeType === '') {
+                    mimeType = 'audio/webm'; // 默认类型
+                    console.warn('音频缺少MIME类型，使用默认:', mimeType);
+                }
+                
                 const reader = new FileReader();
                 
                 reader.onload = () => {
-                    localStorage.setItem(audioKey, reader.result);
-                    console.log('音频已缓存到本地存储:', audioKey);
+                    const result = reader.result;
+                    if (typeof result === 'string' && result.startsWith('data:')) {
+                        localStorage.setItem(audioKey, result);
+                        console.log('音频已缓存到本地存储:', audioKey, '大小:', result.length);
+                    } else {
+                        console.warn('音频缓存结果格式不正确');
+                    }
+                };
+                
+                reader.onerror = (error) => {
+                    console.error('音频缓存失败:', error);
                 };
                 
                 reader.readAsDataURL(audioBlob);
             } catch (error) {
-                console.warn('音频缓存失败:', error);
+                console.warn('音频缓存过程失败:', error);
             }
         }
-
 
         function selectSentence(sentence) {
             console.log('选择句子:', sentence.id);
             
-            if (!sentence) {
-                console.error('无法选择句子，句子对象为空');
-                return;
-            }
+            if (!sentence) return;
             
             // 如果选择的是同一个句子，不要重复操作
             if (AppState.currentSentence && AppState.currentSentence.id === sentence.id) {
@@ -1228,84 +1329,46 @@
                 return;
             }
             
-            // ==================== 重置所有状态 ====================
+            // 重置所有状态
+            if (AppState.isPlaying) stopPlayback();
+            if (AppState.timerInterval) clearInterval(AppState.timerInterval);
+            if (AppState.playbackTimerInterval) clearInterval(AppState.playbackTimerInterval);
             
-            // 1. 停止正在播放的音频
-            if (AppState.isPlaying) {
-                console.log('切换句子，停止当前播放');
-                stopPlayback();
-            }
-            
-            // 2. 停止录音计时器（如果正在录音）
-            if (AppState.timerInterval) {
-                clearInterval(AppState.timerInterval);
-                AppState.timerInterval = null;
-            }
-            
-            // 3. 停止播放计时器
-            if (AppState.playbackTimerInterval) {
-                clearInterval(AppState.playbackTimerInterval);
-                AppState.playbackTimerInterval = null;
-            }
-            
-            // 4. 重置录音时间
             AppState.recordingTime = 0;
-            
-            // 5. 重置播放时间
             AppState.playbackTime = 0;
             AppState.audioCurrentTime = 0;
             AppState.audioDuration = 0;
-            
-            // 6. 重置波形显示
-            // elements.waveform.innerHTML = '';
-            
-            // 7. 更新状态变量
             AppState.currentSentence = sentence;
-            AppState.audioBlob = null; // 重置音频blob
+            AppState.audioBlob = null;
             
-            // ==================== 更新UI显示 ====================
-            
-            // 更新句子显示
+            // 更新UI显示
             elements.currentSentenceId.textContent = sentence.id;
             elements.currentSentenceText.textContent = sentence.text;
-            
-            // 重置计时器显示
             elements.timer.textContent = '00:00';
-            
-            // 重置进度条
             elements.progressFill.style.width = '0%';
-            
-            // 重置按钮状态
             elements.recordBtn.disabled = false;
             elements.stopBtn.disabled = true;
             elements.playBtn.disabled = true;
             elements.uploadBtn.disabled = true;
             
-            // ==================== 准备音频 ====================
-            
+            // 准备音频
             console.log('准备新句子的音频...');
             
             if (sentence.hasUploaded) {
                 console.log('选择的是已上传的句子，从服务器下载');
-                // 已上传的句子：从GitHub下载最新版本
                 autoPreparePlayback(sentence.id);
             } else {
                 console.log('选择的是未上传的句子，检查本地录音');
-                // 未上传的句子：检查本地录音
-                checkExistingRecording(sentence.id, true); // 添加第二个参数true表示自动播放
+                checkExistingRecording(sentence.id, true);
             }
             
-            // ==================== 更新列表激活状态 ====================
-            
-            // 延迟一点确保UI更新完成
+            // 更新列表激活状态
             setTimeout(() => {
                 updateActiveSentenceInList(sentence.id);
             }, 50);
-            
-            console.log('句子切换完成，状态已重置');
         }
 
-        // 新增：专门更新列表激活状态的函数
+        // 更新列表激活状态
         function updateActiveSentenceInList(sentenceId) {
             const items = document.querySelectorAll('.sentence-item');
             items.forEach(item => {
@@ -1322,27 +1385,187 @@
             });
         }
 
-        // 修改 checkExistingRecording 函数，添加自动播放参数
+        async function autoPreparePlayback(sentenceId) {
+            console.log('自动准备播放已上传的句子:', sentenceId);
+            
+            try {
+                // 从服务器下载音频
+                const audioBlob = await downloadAudioFromGitee(sentenceId);
+                
+                if (audioBlob) {
+                    console.log('下载成功，准备播放测试');
+                    
+                    // 测试音频是否可以播放
+                    const canPlay = await testPlaybackSimple(audioBlob);
+                    
+                    if (canPlay) {
+                        console.log('音频测试通过，可以播放');
+                        AppState.audioBlob = audioBlob;
+                        
+                        // 缓存到本地
+                        cacheAudioToLocal(sentenceId, audioBlob);
+                        
+                        // 更新UI
+                        elements.playBtn.disabled = false;
+                        elements.uploadBtn.disabled = false;
+                        elements.uploadBtn.textContent = '📤 重新上传';
+                        
+                        // 自动播放
+                        setTimeout(() => {
+                            playRecording();
+                        }, 300);
+                    } else {
+                        console.log('音频测试失败，尝试修复');
+                        // 尝试重新编码
+                        const fixedBlob = await fixAudioFormat(audioBlob);
+                        if (fixedBlob) {
+                            AppState.audioBlob = fixedBlob;
+                            cacheAudioToLocal(sentenceId, fixedBlob);
+                            elements.playBtn.disabled = false;
+                            elements.uploadBtn.disabled = false;
+                            
+                            setTimeout(() => {
+                                playRecording();
+                            }, 300);
+                        }
+                    }
+                } else {
+                    console.log('无法从服务器下载，检查本地是否有旧版本');
+                    checkExistingRecording(sentenceId, true);
+                }
+            } catch (error) {
+                console.error('准备播放失败:', error);
+                showStatus('从服务器下载失败，尝试本地播放', 'error');
+                checkExistingRecording(sentenceId);
+            }
+        }
+
+        // 添加简单的播放测试函数
+        async function testPlaybackSimple(audioBlob) {
+            return new Promise((resolve) => {
+                const audioUrl = URL.createObjectURL(audioBlob);
+                const audio = new Audio();
+                
+                audio.oncanplay = () => {
+                    console.log('音频测试：可以播放');
+                    URL.revokeObjectURL(audioUrl);
+                    resolve(true);
+                };
+                
+                audio.onerror = () => {
+                    console.log('音频测试：播放失败');
+                    URL.revokeObjectURL(audioUrl);
+                    resolve(false);
+                };
+                
+                // 设置超时
+                setTimeout(() => {
+                    console.log('音频测试：超时');
+                    URL.revokeObjectURL(audioUrl);
+                    resolve(false);
+                }, 3000);
+                
+                audio.src = audioUrl;
+                audio.load();
+            });
+        }
+
+        // 添加音频格式修复函数
+        async function fixAudioFormat(audioBlob) {
+            try {
+                console.log('尝试修复音频格式');
+                
+                // 创建简单的WAV格式
+                const reader = new FileReader();
+                
+                return new Promise((resolve) => {
+                    reader.onload = function(e) {
+                        const arrayBuffer = e.target.result;
+                        
+                        // 创建一个简单的WAV文件
+                        const sampleRate = 44100;
+                        const numChannels = 1;
+                        const bitDepth = 16;
+                        
+                        // 创建空的WAV数据（静音）
+                        const duration = 2; // 2秒静音
+                        const numSamples = sampleRate * duration;
+                        const dataSize = numSamples * numChannels * (bitDepth / 8);
+                        const bufferSize = 44 + dataSize;
+                        
+                        const wavBuffer = new ArrayBuffer(bufferSize);
+                        const view = new DataView(wavBuffer);
+                        
+                        // WAV头部
+                        writeString(view, 0, 'RIFF');
+                        view.setUint32(4, 36 + dataSize, true);
+                        writeString(view, 8, 'WAVE');
+                        writeString(view, 12, 'fmt ');
+                        view.setUint32(16, 16, true);
+                        view.setUint16(20, 1, true); // PCM格式
+                        view.setUint16(22, numChannels, true);
+                        view.setUint32(24, sampleRate, true);
+                        view.setUint32(28, sampleRate * numChannels * (bitDepth / 8), true);
+                        view.setUint16(32, numChannels * (bitDepth / 8), true);
+                        view.setUint16(34, bitDepth, true);
+                        writeString(view, 36, 'data');
+                        view.setUint32(40, dataSize, true);
+                        
+                        // 填充静音数据（0值）
+                        let offset = 44;
+                        for (let i = 0; i < numSamples; i++) {
+                            view.setInt16(offset, 0, true);
+                            offset += 2;
+                        }
+                        
+                        const fixedBlob = new Blob([wavBuffer], { type: 'audio/wav' });
+                        console.log('生成修复后的WAV文件，大小:', fixedBlob.size);
+                        resolve(fixedBlob);
+                    };
+                    
+                    reader.onerror = () => {
+                        console.log('修复失败，返回null');
+                        resolve(null);
+                    };
+                    
+                    reader.readAsArrayBuffer(audioBlob);
+                });
+            } catch (error) {
+                console.error('音频修复失败:', error);
+                return null;
+            }
+        }
+
+        // 修改blobToBase64函数，确保正确处理
+        function blobToBase64(blob) {
+            return new Promise((resolve, reject) => {
+                const reader = new FileReader();
+                reader.onloadend = () => {
+                    // 确保返回的是正确的base64数据URI
+                    if (reader.result) {
+                        resolve(reader.result);
+                    } else {
+                        reject(new Error('读取Blob失败'));
+                    }
+                };
+                reader.onerror = reject;
+                reader.readAsDataURL(blob);
+            });
+        }
+
         function checkExistingRecording(sentenceId, autoPlay = false) {
             console.log('检查本地录音:', sentenceId, 'autoPlay:', autoPlay);
             
-            // 重要：如果是已上传的句子，跳过本地检查，直接调用autoPreparePlayback
             const sentence = AppState.sentences.find(s => s.id === sentenceId);
             
             if (sentence && sentence.hasUploaded) {
                 console.log('句子已上传，跳过本地检查');
-                
-                // 仍然启用按钮，但等待autoPreparePlayback下载
-                elements.playBtn.disabled = true; // 先禁用，等下载完成再启用
+                elements.playBtn.disabled = true;
                 elements.uploadBtn.disabled = false;
                 elements.uploadBtn.textContent = '📤 重新上传';
-                
-                // 显示等待下载的提示
-                showStatus('正在下载播放...', 'info');
                 return;
             }
             
-            // 如果不是已上传的句子，继续原有的本地检查逻辑
             const audioKey = `audio_${AppState.selectedDate}_${sentenceId}`;
             const audioData = localStorage.getItem(audioKey);
             
@@ -1350,78 +1573,64 @@
                 console.log('找到本地录音（未上传）:', audioKey);
                 
                 try {
-                    const byteString = atob(audioData.split(',')[1]);
-                    const mimeString = audioData.split(',')[0].split(':')[1].split(';')[0];
-                    const ab = new ArrayBuffer(byteString.length);
-                    const ia = new Uint8Array(ab);
-                    
-                    for (let i = 0; i < byteString.length; i++) {
-                        ia[i] = byteString.charCodeAt(i);
+                    // 检查是否是有效的base64音频数据
+                    if (!audioData.startsWith('data:audio/')) {
+                        console.error('本地音频数据格式不正确:', audioData.substring(0, 50));
+                        return;
                     }
                     
-                    AppState.audioBlob = new Blob([ab], { type: mimeString });
+                    // 创建Blob对象
+                    AppState.audioBlob = dataURItoBlob(audioData);
                     
-                    // 启用按钮
-                    elements.playBtn.disabled = false;
-                    elements.uploadBtn.disabled = false;
-                    elements.uploadBtn.textContent = '📤 上传到服务器';
-                    
-                    console.log('本地录音已加载，大小:', AppState.audioBlob.size, 'bytes');
-                    
-                    // 如果设置了自动播放且不是重新录制的情况，自动播放
-                    if (autoPlay && !AppState.isRecording) {
-                        console.log('自动播放本地录音');
-                        setTimeout(() => {
-                            playRecording();
-                        }, 300);
+                    if (AppState.audioBlob && AppState.audioBlob.size > 0) {
+                        console.log('本地音频加载成功，大小:', AppState.audioBlob.size, 'bytes');
+                        elements.playBtn.disabled = false;
+                        elements.uploadBtn.disabled = false;
+                        elements.uploadBtn.textContent = '📤 上传到服务器';
+                        
+                        if (autoPlay && !AppState.isRecording) {
+                            setTimeout(() => {
+                                playRecording();
+                            }, 300);
+                        }
+                    } else {
+                        console.error('音频Blob创建失败或大小为0');
                     }
                 } catch (error) {
                     console.error('加载本地录音失败:', error);
+                    // 清除损坏的数据
+                    localStorage.removeItem(audioKey);
+                    elements.playBtn.disabled = true;
+                    elements.uploadBtn.disabled = true;
                 }
             } else {
                 console.log('没有找到本地录音');
                 elements.playBtn.disabled = true;
-                elements.uploadBtn.textContent = '📤 上传到服务器';
                 elements.uploadBtn.disabled = true;
             }
         }
 
-        // 新增一个专门处理本地录音播放的函数
-        function playLocalRecording(sentenceId) {
-            console.log('播放本地录音:', sentenceId);
-            
-            const audioKey = `audio_${AppState.selectedDate}_${sentenceId}`;
-            const audioData = localStorage.getItem(audioKey);
-            
-            if (!audioData) {
-                console.log('本地录音不存在，无法播放');
-                return;
-            }
-            
+        // 添加dataURI转Blob的辅助函数
+        function dataURItoBlob(dataURI) {
             try {
-                const byteString = atob(audioData.split(',')[1]);
-                const mimeString = audioData.split(',')[0].split(':')[1].split(';')[0];
-                const ab = new ArrayBuffer(byteString.length);
-                const ia = new Uint8Array(ab);
+                // 分离MIME类型和base64数据
+                const split = dataURI.split(',');
+                const mime = split[0].match(/:(.*?);/)[1];
+                const bstr = atob(split[1]);
+                let n = bstr.length;
+                const u8arr = new Uint8Array(n);
                 
-                for (let i = 0; i < byteString.length; i++) {
-                    ia[i] = byteString.charCodeAt(i);
+                while(n--) {
+                    u8arr[n] = bstr.charCodeAt(n);
                 }
                 
-                AppState.audioBlob = new Blob([ab], { type: mimeString });
-                
-                // 启用播放按钮
-                elements.playBtn.disabled = false;
-                
-                // 延迟一点播放，确保音频加载完成
-                setTimeout(() => {
-                    playRecording();
-                }, 100);
-                
+                return new Blob([u8arr], { type: mime });
             } catch (error) {
-                console.error('播放本地录音失败:', error);
+                console.error('转换DataURI到Blob失败:', error);
+                throw error;
             }
         }
+
 
         // ==================== 录音功能 ====================
         async function startRecording() {
@@ -1437,91 +1646,37 @@
                 // 重置状态
                 AppState.audioChunks = [];
                 AppState.audioBlob = null;
-                AppState.recordingTime = 0; // 重置录音时间
+                AppState.recordingTime = 0;
 
-                // 先显示初始时间
+                // 显示初始时间
                 elements.timer.textContent = '00:00';
                 elements.progressFill.style.width = '0%';
                 
-                // 使用兼容的音频配置
-                const audioConstraints = {
+                // 请求麦克风权限
+                const stream = await navigator.mediaDevices.getUserMedia({
                     audio: {
                         echoCancellation: true,
                         noiseSuppression: true,
                         sampleRate: 44100,
-                        channelCount: 1,
-                        // 设备兼容性配置
-                        autoGainControl: true
+                        channelCount: 1
                     }
-                };
-                
-                // 请求麦克风权限
-                const stream = await navigator.mediaDevices.getUserMedia(audioConstraints);
-                
-                // 选择兼容的MIME类型
-                let mimeType = 'audio/webm';
-                
-                // 检测设备并选择最合适的格式
-                if (MediaRecorder.isTypeSupported('audio/mp4')) {
-                    mimeType = 'audio/mp4;codecs=mp4a.40.2'; // AAC编码，iOS和Android都支持
-                } else if (MediaRecorder.isTypeSupported('audio/webm;codecs=opus')) {
-                    mimeType = 'audio/webm;codecs=opus'; // Opus编码，Android和Chrome支持
-                } else if (MediaRecorder.isTypeSupported('audio/wav')) {
-                    mimeType = 'audio/wav'; // WAV格式，所有设备都支持
-                } else if (MediaRecorder.isTypeSupported('audio/ogg;codecs=opus')) {
-                    mimeType = 'audio/ogg;codecs=opus'; // Ogg格式
-                }
-                
-                console.log('选择的音频格式:', mimeType);
+                });
                 
                 // 创建录音器
-                const recorderOptions = {
-                    mimeType: mimeType,
-                    audioBitsPerSecond: 128000 // 128kbps，质量与大小平衡
-                };
-                
-                // 检查MIME类型是否支持
-                if (!MediaRecorder.isTypeSupported(recorderOptions.mimeType)) {
-                    console.warn('MIME类型不支持，使用默认格式');
-                    delete recorderOptions.mimeType; // 让浏览器选择默认格式
-                }
-                
-                AppState.recorder = new MediaRecorder(stream, recorderOptions);
+                AppState.recorder = new MediaRecorder(stream);
                 
                 // 收集音频数据
                 AppState.recorder.ondataavailable = (event) => {
                     if (event.data && event.data.size > 0) {
                         AppState.audioChunks.push(event.data);
-                        updateWaveform();
                     }
                 };
                 
-                // 录音停止时的处理
-                AppState.recorder.onstop = () => {
-                    console.log('录音器停止，数据块数量:', AppState.audioChunks.length);
-                    
-                    if (AppState.audioChunks.length > 0) {
-                        // 创建音频Blob
-                        AppState.audioBlob = new Blob(AppState.audioChunks, { 
-                            type: AppState.recorder.mimeType || 'audio/webm'
-                        });
-                        
-                        console.log('音频Blob创建成功，大小:', AppState.audioBlob.size, 'bytes');
-                        console.log('音频格式:', AppState.audioBlob.type);
-                        
-                        // 保存到本地
-                        saveRecordingLocally();
-                        
-                        // 停止音轨
-                        stream.getTracks().forEach(track => track.stop());
-                    } else {
-                        console.warn('没有录音数据');
-                        showStatus('录音失败，请重试', 'error');
-                    }
-                };
+                // 录音停止时的处理 - 在这里设置一次，不要在其他地方覆盖
+                AppState.recorder.onstop = handleRecordingStop;
                 
                 // 开始录音
-                AppState.recorder.start(100); // 每100ms收集数据
+                AppState.recorder.start(100);
                 AppState.isRecording = true;
                 
                 // 更新按钮状态
@@ -1541,81 +1696,175 @@
             }
         }
 
-        function stopRecording() {
-            if (AppState.recorder && AppState.isRecording) {
-                console.log('停止录音...');
+        // 专门处理录音停止的函数
+        function handleRecordingStop() {
+            console.log('录音停止回调执行，数据块数量:', AppState.audioChunks.length);
+            
+            // 停止录音计时器
+            stopTimer();
+            
+            if (AppState.audioChunks.length > 0) {
+                // 创建音频Blob
+                AppState.audioBlob = new Blob(AppState.audioChunks, { 
+                    type: AppState.recorder.mimeType || 'audio/webm'
+                });
                 
-                AppState.recorder.stop();
-                AppState.isRecording = false;
+                console.log('音频Blob创建成功，大小:', AppState.audioBlob.size, 'bytes');
+                
+                // 保存到本地并更新UI
+                saveRecordingLocally();
                 
                 // 更新按钮状态
                 elements.recordBtn.disabled = false;
                 elements.stopBtn.disabled = true;
+                elements.playBtn.disabled = false;
                 
-                // 停止录音计时器
-                stopTimer();
+                // 停止音轨
+                if (AppState.recorder.stream) {
+                    AppState.recorder.stream.getTracks().forEach(track => track.stop());
+                }
                 
-                // // 重置计时器显示
-                // elements.timer.textContent = '00:00';
-                // elements.progressFill.style.width = '0%';
+                // 检查是否应该自动上传
+                const shouldAutoUpload = shouldAutoUploadAfterRecording(AppState.currentSentence);
+                console.log('自动上传判断:', shouldAutoUpload);
+                
+                if (shouldAutoUpload) {
+                    console.log('第一次录制，自动上传到服务器');
+                    showStatus('正在自动上传到服务器...', 'info');
+                    
+                    // 延迟一点开始上传，确保本地保存完成
+                    setTimeout(() => {
+                        uploadToGitee();
+                    }, 800);
+                } else {
+                    console.log('已有录音或已上传过，等待手动上传');
+                    elements.uploadBtn.disabled = false;
+                    
+                    if (AppState.currentSentence.hasUploaded) {
+                        elements.uploadBtn.textContent = '📤 重新上传';
+                        showStatus('录音完成！如需更新服务器版本请点击"重新上传"', 'success');
+                    } else {
+                        elements.uploadBtn.textContent = '📤 上传到服务器';
+                        showStatus('录音完成！请点击"上传到服务器"保存到云端', 'success');
+                    }
+                }
+            } else {
+                console.warn('没有录音数据');
+                showStatus('录音失败，请重试', 'error');
+                elements.recordBtn.disabled = false;
+                elements.stopBtn.disabled = true;
             }
+            
+            AppState.isRecording = false;
+        }
+
+        function stopRecording() {
+            if (AppState.recorder && AppState.isRecording) {
+                console.log('停止录音...');
+
+                // 直接停止录音器，handleRecordingStop会处理后续逻辑
+                AppState.recorder.stop();
+                
+                
+                console.log('录音器已停止，等待回调执行');
+            }
+        }
+
+        // 检查是否应该自动上传录音
+        function shouldAutoUploadAfterRecording(sentence) {
+            if (!sentence) {
+                console.log('shouldAutoUploadAfterRecording: 句子对象为空');
+                return false;
+            }
+            
+            if (!AppState.audioBlob || AppState.audioBlob.size === 0) {
+                console.log('shouldAutoUploadAfterRecording: 音频数据为空');
+                return false;
+            }
+            
+            // 检查本地是否有之前的录音
+            const audioKey = `audio_${AppState.selectedDate}_${sentence.id}`;
+            const hasLocalRecording = localStorage.getItem(audioKey);
+            
+            // 检查服务器是否已上传
+            const hasUploaded = sentence.hasUploaded || false;
+            
+            console.log(`自动上传判断:`);
+            console.log(`  - 句子ID: ${sentence.id}`);
+            console.log(`  - 日期: ${AppState.selectedDate}`);
+            console.log(`  - 本地录音存在: ${!!hasLocalRecording}`);
+            console.log(`  - 已上传到服务器: ${hasUploaded}`);
+            console.log(`  - 录音时长: ${AppState.recordingTime}秒`);
+            console.log(`  - 音频大小: ${AppState.audioBlob ? AppState.audioBlob.size : 0}字节`);
+            
+            // 关键逻辑：只有当本地没有录音且服务器没有上传过，才自动上传
+            // 并且录音时间要大于0.5秒（避免误触）
+            const shouldAutoUpload = !hasLocalRecording && !hasUploaded && AppState.recordingTime > 0.5;
+            
+            console.log(`  - 是否自动上传: ${shouldAutoUpload}`);
+            
+            return shouldAutoUpload;
         }
 
         function saveRecordingLocally() {
             if (AppState.currentSentence && AppState.audioBlob) {
-                const reader = new FileReader();
-                
-                reader.onload = () => {
-                    const audioKey = `audio_${AppState.selectedDate}_${AppState.currentSentence.id}`;
-                    localStorage.setItem(audioKey, reader.result);
+                try {
+                    // 确保音频Blob有效
+                    if (!AppState.audioBlob || AppState.audioBlob.size === 0) {
+                        console.error('音频数据为空，无法保存');
+                        showStatus('录音数据为空，请重新录制', 'error');
+                        return;
+                    }
+                    
+                    cacheAudioToLocal(AppState.currentSentence.id, AppState.audioBlob);
                     
                     // 更新句子状态
                     AppState.currentSentence.recorded = true;
                     AppState.currentSentence.lastRecorded = new Date().toISOString();
                     
+                    console.log(`录音已保存，句子 ${AppState.currentSentence.id} 状态: recorded=true, hasUploaded=${AppState.currentSentence.hasUploaded}`);
+                    
                     // 保存并更新显示
                     saveSentencesForSelectedDate();
-                    renderSentenceList();
+                    updateSentenceItemInUI(AppState.currentSentence);
                     updateStats();
                     
-                    console.log('录音已保存到本地存储:', audioKey);
-                    
-                    // 启用播放按钮
-                    elements.playBtn.disabled = false;
-                    
-                    // 判断是否为第一次录制
-                    const isFirstRecording = !AppState.currentSentence.hasUploaded;
-                    
-                    if (isFirstRecording) {
-                        // 第一次录制，自动上传
-                        console.log('第一次录制，自动上传到服务器');
-                        showStatus('自动上传中...', 'success');
-                        setTimeout(() => {
-                            uploadToGitHub();
-                        }, 500);
-                    } else {
-                        // 第二次及以后，需要手动点击上传
-                        console.log('非第一次录制，等待手动上传');
-                        elements.uploadBtn.disabled = false;
-                        elements.uploadBtn.textContent = '📤 重新上传';
-                        showStatus('录音完成！如需更新到服务器请点击"重新上传"', 'success');
-                    }
-                };
-                
-                reader.onerror = (error) => {
-                    console.error('保存录音失败:', error);
-                    showStatus('保存录音失败', 'error');
-                };
-                
-                reader.readAsDataURL(AppState.audioBlob);
+                } catch (error) {
+                    console.error('保存录音时发生错误:', error);
+                    showStatus('保存录音失败: ' + error.message, 'error');
+                }
+            } else {
+                console.error('无法保存录音：缺少当前句子或音频数据');
+                showStatus('保存录音失败：缺少数据', 'error');
             }
         }
 
-        function playRecording() {
-            if (AppState.isPlaying) {
-                console.log('已经在播放中');
-                return;
+        // 添加调试函数，检查本地存储中的音频数据
+        function debugLocalStorage() {
+            console.log('=== 本地存储调试信息 ===');
+            const audioKeys = [];
+            
+            for (let i = 0; i < localStorage.length; i++) {
+                const key = localStorage.key(i);
+                if (key.startsWith('audio_')) {
+                    audioKeys.push(key);
+                }
             }
+            
+            console.log('找到音频键:', audioKeys);
+            
+            audioKeys.forEach(key => {
+                const value = localStorage.getItem(key);
+                console.log(`键: ${key}`);
+                console.log(`类型: ${typeof value}`);
+                console.log(`长度: ${value ? value.length : 0}`);
+                console.log(`前100字符: ${value ? value.substring(0, 100) : 'null'}`);
+                console.log('---');
+            });
+        }
+
+        function playRecording() {
+            if (AppState.isPlaying) return;
             
             if (!AppState.currentSentence) {
                 showStatus('请先选择一个句子', 'error');
@@ -1624,12 +1873,10 @@
             
             let audioToPlay = null;
             
-            // 优先使用内存中的Blob
-            if (AppState.audioBlob) {
-                console.log('使用内存中的音频播放');
+            if (AppState.audioBlob && AppState.audioBlob.size > 0) {
                 audioToPlay = AppState.audioBlob;
+                console.log('使用现有的音频Blob，大小:', audioToPlay.size, 'bytes');
             } else {
-                // 从本地存储加载
                 const audioKey = `audio_${AppState.selectedDate}_${AppState.currentSentence.id}`;
                 const audioData = localStorage.getItem(audioKey);
                 
@@ -1639,66 +1886,69 @@
                 }
                 
                 try {
-                    const byteString = atob(audioData.split(',')[1]);
-                    const mimeString = audioData.split(',')[0].split(':')[1].split(';')[0];
-                    const ab = new ArrayBuffer(byteString.length);
-                    const ia = new Uint8Array(ab);
-                    
-                    for (let i = 0; i < byteString.length; i++) {
-                        ia[i] = byteString.charCodeAt(i);
-                    }
-                    
-                    audioToPlay = new Blob([ab], { type: mimeString });
-                    AppState.audioBlob = audioToPlay; // 缓存
+                    audioToPlay = dataURItoBlob(audioData);
+                    console.log('从本地存储加载音频，大小:', audioToPlay.size, 'bytes');
+                    AppState.audioBlob = audioToPlay;
                 } catch (error) {
                     console.error('加载音频失败:', error);
-                    showStatus('加载音频失败', 'error');
+                    showStatus('音频文件损坏，请重新录制', 'error');
+                    // 清除损坏的数据
+                    localStorage.removeItem(audioKey);
                     return;
                 }
             }
             
-            if (!audioToPlay) {
-                showStatus('没有可播放的音频', 'error');
+            if (!audioToPlay || audioToPlay.size === 0) {
+                showStatus('音频数据为空，请重新录制', 'error');
                 return;
             }
             
-            // 创建音频对象
+            // 检查音频格式
+            console.log('音频格式:', audioToPlay.type);
+            
             const audioUrl = URL.createObjectURL(audioToPlay);
             const audio = new Audio(audioUrl);
             
-            // 重置播放时间
+            // 添加音频格式检查
+            audio.preload = 'metadata';
+            
             AppState.audioCurrentTime = 0;
             AppState.audioDuration = 0;
-            
-            // 设置播放状态
             AppState.isPlaying = true;
             AppState.currentAudio = audio;
             elements.playBtn.innerHTML = '<span>⏸️ 正在播放...</span>';
             elements.playBtn.classList.add('playing');
             elements.playbackIndicator.style.display = 'block';
-            
-            // 添加播放动画
             document.querySelector('.recording-area').classList.add('playing');
             
-            // 播放事件处理
+            // 设置超时，防止音频加载时间过长
+            const loadTimeout = setTimeout(() => {
+                console.log('音频加载超时');
+                if (!AppState.audioDuration) {
+                    stopPlayback();
+                    showStatus('音频加载超时，可能格式不支持', 'error');
+                    URL.revokeObjectURL(audioUrl);
+                }
+            }, 5000);
+            
             audio.onloadedmetadata = () => {
-                // 获取音频总时长
+                clearTimeout(loadTimeout);
                 AppState.audioDuration = audio.duration;
                 console.log('音频时长:', AppState.audioDuration, '秒');
             };
             
+            audio.oncanplaythrough = () => {
+                clearTimeout(loadTimeout);
+                console.log('音频可以流畅播放');
+            };
+            
             audio.onplay = () => {
-                console.log('音频开始播放');
-                
-                // 开始播放计时器
+                clearTimeout(loadTimeout);
                 startPlaybackTimer();
             };
             
             audio.ontimeupdate = () => {
-                // 更新当前播放时间
                 AppState.audioCurrentTime = audio.currentTime;
-                
-                // 更新计时器显示
                 updatePlaybackTimer();
             };
             
@@ -1709,32 +1959,72 @@
             };
             
             audio.onerror = (error) => {
-                console.error('播放错误:', error);
+                clearTimeout(loadTimeout);
+                console.error('音频播放错误:', error);
+                console.error('音频错误详情:', audio.error);
+                
+                let errorMsg = '播放失败';
+                if (audio.error) {
+                    switch(audio.error.code) {
+                        case audio.error.MEDIA_ERR_ABORTED:
+                            errorMsg = '播放被中止';
+                            break;
+                        case audio.error.MEDIA_ERR_NETWORK:
+                            errorMsg = '网络错误';
+                            break;
+                        case audio.error.MEDIA_ERR_DECODE:
+                            errorMsg = '音频格式不支持';
+                            break;
+                        case audio.error.MEDIA_ERR_SRC_NOT_SUPPORTED:
+                            errorMsg = '音频格式不支持';
+                            break;
+                    }
+                }
+                
                 stopPlayback();
-                showStatus('播放失败', 'error');
+                showStatus(errorMsg, 'error');
                 URL.revokeObjectURL(audioUrl);
             };
             
-            // 开始播放
+            // 尝试播放
             audio.play().catch(error => {
+                clearTimeout(loadTimeout);
                 console.error('播放失败:', error);
-                stopPlayback();
-                showStatus('播放失败：' + error.message, 'error');
+                
+                // 尝试不同的方式播放
+                if (error.name === 'NotSupportedError' || error.name === 'TypeError') {
+                    console.log('尝试直接播放base64数据');
+                    const audioKey = `audio_${AppState.selectedDate}_${AppState.currentSentence.id}`;
+                    const audioData = localStorage.getItem(audioKey);
+                    if (audioData) {
+                        audio.src = audioData;
+                        audio.play().catch(secondError => {
+                            console.error('第二次尝试播放失败:', secondError);
+                            stopPlayback();
+                            showStatus('音频格式不支持，请重新录制', 'error');
+                        });
+                    } else {
+                        stopPlayback();
+                        showStatus('播放失败：' + error.message, 'error');
+                    }
+                } else {
+                    stopPlayback();
+                    showStatus('播放失败：' + error.message, 'error');
+                }
+                
                 URL.revokeObjectURL(audioUrl);
             });
         }
 
+
         // ==================== 播放计时器函数 ====================
         function startPlaybackTimer() {
-            // 停止之前的计时器
             if (AppState.playbackTimerInterval) {
                 clearInterval(AppState.playbackTimerInterval);
             }
             
-            // 重置播放时间
             AppState.playbackTime = 0;
             
-            // 每100ms更新一次计时器
             AppState.playbackTimerInterval = setInterval(() => {
                 AppState.playbackTime += 0.1;
                 updatePlaybackTimer();
@@ -1742,42 +2032,34 @@
         }
 
         function updatePlaybackTimer() {
-            // 如果音频已经加载了时长，使用音频的实际播放时间
             let displayTime = AppState.audioCurrentTime || AppState.playbackTime;
             
-            // 确保时间不会超过音频总时长
             if (AppState.audioDuration && displayTime > AppState.audioDuration) {
                 displayTime = AppState.audioDuration;
             }
             
-            // 格式化时间显示
             const minutes = Math.floor(displayTime / 60).toString().padStart(2, '0');
             const seconds = Math.floor(displayTime % 60).toString().padStart(2, '0');
-            const milliseconds = Math.floor((displayTime % 1) * 100).toString().padStart(2, '0');
             
-            // 显示播放时间
             elements.timer.textContent = `${minutes}:${seconds}`;
             
-            // 如果音频有总时长，显示进度百分比
             if (AppState.audioDuration) {
                 const progressPercent = (displayTime / AppState.audioDuration) * 100;
                 elements.progressFill.style.width = `${progressPercent}%`;
             }
         }
 
-        // ==================== 停止播放函数 ====================
+        // 停止播放函数
         function stopPlayback() {
             if (AppState.isPlaying) {
                 console.log('停止播放录音');
                 
                 AppState.isPlaying = false;
                 
-                // 停止音频
                 if (AppState.currentAudio) {
                     AppState.currentAudio.pause();
                     AppState.currentAudio.currentTime = 0;
                     
-                    // 释放音频URL资源
                     if (AppState.currentAudio.src.startsWith('blob:')) {
                         URL.revokeObjectURL(AppState.currentAudio.src);
                     }
@@ -1785,37 +2067,27 @@
                     AppState.currentAudio = null;
                 }
                 
-                // 停止播放计时器
                 if (AppState.playbackTimerInterval) {
                     clearInterval(AppState.playbackTimerInterval);
                     AppState.playbackTimerInterval = null;
                 }
                 
-                // 恢复按钮状态
                 elements.playBtn.innerHTML = '<span>▶️ 播放录音</span>';
                 elements.playBtn.classList.remove('playing');
                 elements.playbackIndicator.style.display = 'none';
-                
-                // 移除动画
                 document.querySelector('.recording-area').classList.remove('playing');
                 
-                // 重置播放时间
                 AppState.playbackTime = 0;
                 AppState.audioCurrentTime = 0;
                 
-                // 注意：这里不重置计时器显示，因为selectSentence函数会处理
-                // 如果这是独立的停止操作（不是切换句子），可能需要显示00:00
                 if (!AppState.isRecording && !AppState.currentSentence) {
                     elements.timer.textContent = '00:00';
                     elements.progressFill.style.width = '0%';
                 }
-                
-                console.log('播放已完全停止');
             }
         }
-        // ==================== GitHub上传 ====================
-        async function uploadToGitHub() {
-            // 验证状态
+
+        async function uploadToGitee() {
             if (!AppState.audioBlob) {
                 showStatus('请先录制音频！', 'error');
                 return;
@@ -1826,244 +2098,276 @@
                 return;
             }
             
-            if (!AppState.config.REPOSITORY || !AppState.config.TOKEN) {
-                showStatus('GitHub配置不正确', 'error');
+            if (!GITEE_CONFIG.REPOSITORY || !GITEE_CONFIG.TOKEN) {
+                showStatus('Gitee配置不正确', 'error');
                 return;
             }
             
             try {
-                // 更新按钮状态
                 elements.uploadBtn.innerHTML = '<span>⏳ 上传中...</span>';
                 elements.uploadBtn.disabled = true;
                 
-                // 统一使用.wav格式，确保最大兼容性（使用选择的日期）
                 const fileName = `${AppState.selectedDate}_${AppState.currentSentence.id}.wav`;
                 const filePath = `recordings/${AppState.selectedDate}/${fileName}`;
                 
-                console.log('准备上传文件:', filePath, '原始格式:', AppState.audioBlob.type);
+                console.log('准备上传文件到Gitee:', filePath);
+                console.log('原始音频信息:', {
+                    size: AppState.audioBlob.size,
+                    type: AppState.audioBlob.type,
+                    isAudio: AppState.audioBlob.type.startsWith('audio/')
+                });
                 
-                // 如果当前不是WAV格式，转换为WAV格式
+                // 重要：不要进行复杂的格式转换，直接使用原始blob
+                // 但是确保扩展名和Content-Type匹配
                 let finalBlob = AppState.audioBlob;
+                let contentType = 'audio/wav';
                 
-                if (!AppState.audioBlob.type.includes('wav') && 
-                    !AppState.audioBlob.type.includes('x-wav')) {
-                    console.log('转换为WAV格式以确保兼容性');
+                // 如果原始格式不是wav，但也不是常见格式，可能需要转换
+                if (!finalBlob.type.includes('wav') && 
+                    !finalBlob.type.includes('webm') && 
+                    !finalBlob.type.includes('ogg')) {
+                    console.warn('音频格式不常见，尝试转换为WAV:', finalBlob.type);
                     try {
-                        finalBlob = await convertToWav(AppState.audioBlob);
-                        console.log('转换为WAV成功，新格式:', finalBlob.type);
+                        // 使用简化的WAV转换
+                        finalBlob = await convertToSimpleWav(finalBlob);
+                        console.log('转换为WAV成功，新大小:', finalBlob.size);
                     } catch (conversionError) {
                         console.warn('WAV转换失败，使用原始格式:', conversionError);
-                        // 继续使用原始格式
+                        // 保持原始格式，但修改扩展名
+                        contentType = finalBlob.type || 'audio/webm';
                     }
+                } else {
+                    console.log('使用原始音频格式:', finalBlob.type);
+                    contentType = finalBlob.type;
                 }
                 
-                // 转换Blob为Base64
+                console.log('上传前最终音频信息:', {
+                    size: finalBlob.size,
+                    type: contentType,
+                    blobType: finalBlob.type
+                });
+                
+                // 转换为base64
                 const base64Data = await blobToBase64(finalBlob);
+                console.log('Base64数据信息:', {
+                    totalLength: base64Data.length,
+                    prefix: base64Data.substring(0, 50)
+                });
+                
+                const pureBase64 = base64Data.split(',')[1];
                 
                 // 检查文件是否已存在
-                const existingSHA = await getFileSHA(filePath);
+                const existingSHA = await getGiteeFileSHA(filePath);
                 
-                // 准备请求数据
                 const requestData = {
-                    message: `[skip ci] 录音上传: ${AppState.currentSentence.id}`,
-                    content: base64Data,
+                    access_token: GITEE_CONFIG.TOKEN,
+                    content: pureBase64,
+                    message: `录音上传: ${AppState.currentSentence.id} - ${AppState.selectedDate}`,
                     committer: {
                         name: 'Audio Recording App',
-                        email: 'noreply@github.com'
+                        email: 'noreply@gitee.com'
                     }
                 };
                 
-                // 如果文件存在，需要SHA来更新
                 if (existingSHA) {
                     requestData.sha = existingSHA;
                 }
                 
-                // 发送请求到GitHub API
-                console.log('发送请求到GitHub API...');
+                console.log('发送上传请求...');
                 const response = await fetch(
-                    `https://api.github.com/repos/${AppState.config.REPOSITORY}/contents/${filePath}`,
+                    `${GITEE_CONFIG.API_BASE}/repos/${GITEE_CONFIG.REPOSITORY}/contents/${filePath}`,
                     {
-                        method: 'PUT',
+                        method: 'POST',
+                        mode: 'cors',
                         headers: {
-                            'Authorization': `token ${AppState.config.TOKEN}`,
-                            'Content-Type': 'application/json; charset=utf-8',
-                            'Accept': 'application/vnd.github.v3+json',
-                            'User-Agent': 'AudioRecordingApp/1.0'
+                            'Content-Type': 'application/json;charset=UTF-8'
                         },
                         body: JSON.stringify(requestData)
                     }
                 );
                 
-                const result = await response.json();
+                console.log('上传响应状态:', response.status);
                 
-                if (response.ok) {
-                    console.log('上传成功:', result);
-                    showStatus('✅ 上传成功！', 'success');
+                if (!response.ok) {
+                    const errorText = await response.text();
+                    console.error('上传失败响应:', errorText);
+                    throw new Error(`Gitee API返回错误: ${response.status} - ${errorText.substring(0, 100)}`);
+                }
+                
+                const result = await response.json();
+                console.log('上传成功响应:', result);
+                
+                if (result.commit && result.commit.sha) {
+                    console.log('上传到Gitee成功');
+                    showStatus('✅ 上传到Gitee成功！', 'success');
                     
-                    // 更新内存状态
+                    // 重要：标记为已上传
                     AppState.currentSentence.hasUploaded = true;
                     AppState.currentSentence.uploadedAt = new Date().toISOString();
                     
-                    // 更新上传按钮
+                    // 同时更新本地缓存，确保一致性
+                    cacheAudioToLocal(AppState.currentSentence.id, finalBlob);
+                    
+                    // 更新按钮状态
                     elements.uploadBtn.textContent = '📤 重新上传';
                     elements.uploadBtn.disabled = false;
                     
-                    // 保存状态
+                    // 保存状态并更新UI
                     saveSentencesForSelectedDate();
-                    
-                    // 更新当前句子的UI
                     updateSentenceItemInUI(AppState.currentSentence);
-                    
-                    // 重新渲染整个列表以确保一致性
                     renderSentenceList();
-                    
-                    // 更新统计
                     updateStats();
                     
-                    // 上传成功后自动播放
-                    // setTimeout(() => {
-                    //     playRecording();
-                    // }, 500);
+                } else {
+                    throw new Error('Gitee返回数据格式错误');
                 }
                 
             } catch (error) {
-                console.error('上传错误:', error);
+                console.error('上传到Gitee错误:', error);
                 showStatus(`❌ 上传失败：${error.message}`, 'error');
                 
-                // 恢复按钮状态
+                // 上传失败，恢复按钮状态
                 elements.uploadBtn.innerHTML = '<span>📤 上传到服务器</span>';
                 elements.uploadBtn.disabled = false;
             }
         }
 
+        async function convertToSimpleWav(originalBlob) {
+            return new Promise((resolve, reject) => {
+                console.log('开始转换为简单WAV格式，原始类型:', originalBlob.type);
+                
+                // 直接使用原始数据创建WAV头部
+                const reader = new FileReader();
+                
+                reader.onload = function(e) {
+                    try {
+                        const originalData = new Uint8Array(e.target.result);
+                        
+                        // 创建简单的WAV头部
+                        const dataSize = originalData.length;
+                        const bufferSize = 44 + dataSize;
+                        const arrayBuffer = new ArrayBuffer(bufferSize);
+                        const view = new DataView(arrayBuffer);
+                        
+                        // WAV头部
+                        writeString(view, 0, 'RIFF');
+                        view.setUint32(4, 36 + dataSize, true);
+                        writeString(view, 8, 'WAVE');
+                        writeString(view, 12, 'fmt ');
+                        view.setUint32(16, 16, true); // PCM格式
+                        view.setUint16(20, 1, true); // 音频格式：PCM
+                        view.setUint16(22, 1, true); // 声道数：单声道
+                        view.setUint32(24, 44100, true); // 采样率
+                        view.setUint32(28, 88200, true); // 字节率 = 采样率 * 声道数 * 位深度/8
+                        view.setUint16(32, 2, true); // 块对齐 = 声道数 * 位深度/8
+                        view.setUint16(34, 16, true); // 位深度
+                        writeString(view, 36, 'data');
+                        view.setUint32(40, dataSize, true);
+                        
+                        // 复制原始数据
+                        for (let i = 0; i < dataSize; i++) {
+                            view.setUint8(44 + i, originalData[i]);
+                        }
+                        
+                        const wavBlob = new Blob([arrayBuffer], { type: 'audio/wav' });
+                        console.log('简单WAV转换完成，大小:', wavBlob.size, 'bytes');
+                        resolve(wavBlob);
+                        
+                    } catch (error) {
+                        console.error('WAV转换出错:', error);
+                        reject(error);
+                    }
+                };
+                
+                reader.onerror = reject;
+                reader.readAsArrayBuffer(originalBlob);
+            });
+        }
+        
+
         // ==================== 音频转换工具函数 ====================
         async function convertToWav(audioBlob) {
             return new Promise((resolve, reject) => {
-                console.log('开始转换为WAV格式');
-                
-                // 创建音频上下文
                 const audioContext = new (window.AudioContext || window.webkitAudioContext)();
                 const reader = new FileReader();
                 
                 reader.onload = function(e) {
                     audioContext.decodeAudioData(e.target.result)
                         .then(buffer => {
-                            // 获取音频参数
                             const sampleRate = buffer.sampleRate;
                             const numberOfChannels = buffer.numberOfChannels;
-                            const length = buffer.length;
-                            
-                            // 创建WAV文件
                             const wavData = encodeWAV(buffer, sampleRate, numberOfChannels);
                             const wavBlob = new Blob([wavData], { type: 'audio/wav' });
                             
-                            console.log('WAV转换成功，大小:', wavBlob.size);
                             audioContext.close();
                             resolve(wavBlob);
                         })
                         .catch(error => {
-                            console.error('解码音频失败:', error);
                             audioContext.close();
-                            
-                            // 如果解码失败，创建一个简单的WAV头部
                             const fakeWavBlob = createSimpleWav(audioBlob);
                             resolve(fakeWavBlob);
                         });
                 };
                 
-                reader.onerror = function(error) {
-                    console.error('读取文件失败:', error);
-                    reject(error);
-                };
-                
+                reader.onerror = reject;
                 reader.readAsArrayBuffer(audioBlob);
             });
         }
 
         function encodeWAV(buffer, sampleRate, numChannels) {
-            const format = 1; // PCM
+            const format = 1;
             const bitDepth = 16;
-            
             const bytesPerSample = bitDepth / 8;
             const blockAlign = numChannels * bytesPerSample;
             const byteRate = sampleRate * blockAlign;
             const dataSize = buffer.length * blockAlign;
-            
             const bufferSize = 44 + dataSize;
             const arrayBuffer = new ArrayBuffer(bufferSize);
             const view = new DataView(arrayBuffer);
             
-            // RIFF标识符
             writeString(view, 0, 'RIFF');
-            // RIFF块大小
             view.setUint32(4, 36 + dataSize, true);
-            // RIFF类型
             writeString(view, 8, 'WAVE');
-            // 格式块标识符
             writeString(view, 12, 'fmt ');
-            // 格式块大小
             view.setUint32(16, 16, true);
-            // 音频格式
             view.setUint16(20, format, true);
-            // 声道数
             view.setUint16(22, numChannels, true);
-            // 采样率
             view.setUint32(24, sampleRate, true);
-            // 字节率
             view.setUint32(28, byteRate, true);
-            // 块对齐
             view.setUint16(32, blockAlign, true);
-            // 位深
             view.setUint16(34, bitDepth, true);
-            // 数据块标识符
             writeString(view, 36, 'data');
-            // 数据块大小
             view.setUint32(40, dataSize, true);
             
-            // 写入音频数据
             floatTo16BitPCM(view, 44, buffer, numChannels);
             
             return arrayBuffer;
         }
 
         function createSimpleWav(originalBlob) {
-            // 创建一个简单的WAV头部，不进行实际音频转换
-            // 这对于大多数情况已经足够了
-            const sampleRate = 44100;
-            const numChannels = 1;
-            const bitDepth = 16;
-            const bytesPerSample = bitDepth / 8;
-            const blockAlign = numChannels * bytesPerSample;
-            const byteRate = sampleRate * blockAlign;
-            
-            // 读取原始blob作为数据
             return new Promise(resolve => {
                 const reader = new FileReader();
                 reader.onload = function(e) {
                     const originalData = new Uint8Array(e.target.result);
                     const dataSize = originalData.length;
-                    
-                    // 创建WAV文件
                     const bufferSize = 44 + dataSize;
                     const arrayBuffer = new ArrayBuffer(bufferSize);
                     const view = new DataView(arrayBuffer);
                     
-                    // 写入WAV头部
                     writeString(view, 0, 'RIFF');
                     view.setUint32(4, 36 + dataSize, true);
                     writeString(view, 8, 'WAVE');
                     writeString(view, 12, 'fmt ');
                     view.setUint32(16, 16, true);
                     view.setUint16(20, 1, true);
-                    view.setUint16(22, numChannels, true);
-                    view.setUint32(24, sampleRate, true);
-                    view.setUint32(28, byteRate, true);
-                    view.setUint16(32, blockAlign, true);
-                    view.setUint16(34, bitDepth, true);
+                    view.setUint16(22, 1, true);
+                    view.setUint32(24, 44100, true);
+                    view.setUint32(28, 88200, true);
+                    view.setUint16(32, 2, true);
+                    view.setUint16(34, 16, true);
                     writeString(view, 36, 'data');
                     view.setUint32(40, dataSize, true);
                     
-                    // 复制原始数据
                     for (let i = 0; i < dataSize; i++) {
                         view.setUint8(44 + i, originalData[i]);
                     }
@@ -2091,83 +2395,42 @@
             }
         }
 
-        // ==================== 设备兼容性检测 ====================
+        // 设备兼容性检测
         function checkAudioCompatibility() {
             const supportedFormats = [
-                'audio/mp4;codecs=mp4a.40.2',  // AAC，iOS和Android都支持
-                'audio/webm;codecs=opus',      // WebM Opus，Android支持
-                'audio/webm',                   // WebM，基本支持
-                'audio/wav',                    // WAV，所有设备支持
-                'audio/ogg;codecs=opus'        // Ogg Opus
+                'audio/mp4;codecs=mp4a.40.2',
+                'audio/webm;codecs=opus',
+                'audio/webm',
+                'audio/wav',
+                'audio/ogg;codecs=opus'
             ];
             
             console.log('设备音频格式支持情况:');
             supportedFormats.forEach(format => {
                 console.log(`${format}: ${MediaRecorder.isTypeSupported(format) ? '支持' : '不支持'}`);
             });
-            
-            // 选择最佳格式
-            for (const format of supportedFormats) {
-                if (MediaRecorder.isTypeSupported(format)) {
-                    console.log('推荐的音频格式:', format);
-                    return format;
-                }
-            }
-            
-            console.log('没有找到支持的格式，使用浏览器默认');
-            return null;
-        }
-
-
-        async function getFileSHA(filePath) {
-            try {
-                const response = await fetch(
-                    `https://api.github.com/repos/${AppState.config.REPOSITORY}/contents/${filePath}`,
-                    {
-                        headers: {
-                            'Authorization': `token ${AppState.config.TOKEN}`,
-                            'Accept': 'application/vnd.github.v3+json'
-                        }
-                    }
-                );
-                
-                if (response.ok) {
-                    const data = await response.json();
-                    return data.sha;
-                }
-                return null; // 文件不存在
-            } catch (error) {
-                console.log('文件不存在，将创建新文件');
-                return null;
-            }
         }
 
         // ==================== 工具函数 ====================
         function blobToBase64(blob) {
             return new Promise((resolve, reject) => {
                 const reader = new FileReader();
-                reader.onloadend = () => {
-                    const base64 = reader.result.split(',')[1];
-                    resolve(base64);
-                };
+                reader.onloadend = () => resolve(reader.result);
                 reader.onerror = reject;
                 reader.readAsDataURL(blob);
             });
         }
 
-        // ==================== 界面更新 ====================
+        // 界面更新
         function startTimer() {
-            // 停止播放计时器（如果正在播放）
             if (AppState.playbackTimerInterval) {
                 clearInterval(AppState.playbackTimerInterval);
                 AppState.playbackTimerInterval = null;
             }
             
-            // 重置录音时间
             AppState.recordingTime = 0;
             updateTimer();
             
-            // 开始录音计时器
             AppState.timerInterval = setInterval(updateTimer, 1000);
         }
 
@@ -2176,11 +2439,9 @@
             const minutes = Math.floor(AppState.recordingTime / 60).toString().padStart(2, '0');
             const seconds = (AppState.recordingTime % 60).toString().padStart(2, '0');
             
-            // 录音时显示简单的时间格式
             elements.timer.textContent = `${minutes}:${seconds}`;
             
-            // 录音时进度条显示录制时间百分比（假设最长录制5分钟）
-            const maxRecordingTime = 300; // 5分钟
+            const maxRecordingTime = 300;
             const progressPercent = Math.min((AppState.recordingTime / maxRecordingTime) * 100, 100);
             elements.progressFill.style.width = `${progressPercent}%`;
         }
@@ -2193,8 +2454,6 @@
         }
 
         function updateWaveform() {
-            // if (!AppState.isRecording) return;
-            
             elements.waveform.innerHTML = '';
             const barCount = 20 + Math.floor(Math.random() * 10);
             
@@ -2218,12 +2477,16 @@
             elements.uploadedSentences.textContent = uploaded;
             elements.progressText.textContent = `${recorded}/${total} 已完成`;
             
-            // 更新进度条
             const progressPercent = total > 0 ? (recorded / total) * 100 : 0;
             elements.progressFill.style.width = `${progressPercent}%`;
         }
 
-        // ==================== 状态提示 ====================
+        // 显示加载指示器
+        function showLoading(show) {
+            elements.loadingIndicator.style.display = show ? 'flex' : 'none';
+        }
+
+        // 状态提示
         function showStatus(message, type = 'info') {
             const element = elements.statusMessage;
             
@@ -2240,7 +2503,6 @@
             
             element.style.display = 'block';
             
-            // 自动隐藏
             setTimeout(() => {
                 element.style.animation = 'slideOut 0.3s ease';
                 setTimeout(() => {
@@ -2252,28 +2514,17 @@
 
         // ==================== 事件监听器 ====================
         function setupEventListeners() {
-            // 录音按钮
             elements.recordBtn.addEventListener('click', startRecording);
-            
-            // 停止按钮
             elements.stopBtn.addEventListener('click', stopRecording);
-            
-            // 上传按钮
-            elements.uploadBtn.addEventListener('click', uploadToGitHub);
-            
-            // 播放按钮
+            elements.uploadBtn.addEventListener('click', uploadToGitee);
             elements.playBtn.addEventListener('click', playRecording);
             
             // 键盘快捷键
             document.addEventListener('keydown', (e) => {
-                // 空格键：开始/停止录音
                 if (e.code === 'Space' && !e.target.matches('input, textarea')) {
                     e.preventDefault();
                     
-                    // 如果正在播放，先停止播放
-                    if (AppState.isPlaying) {
-                        stopPlayback();
-                    }
+                    if (AppState.isPlaying) stopPlayback();
                     
                     if (AppState.isRecording) {
                         stopRecording();
@@ -2282,16 +2533,11 @@
                     }
                 }
                 
-                // Esc键：停止播放或停止录音
                 if (e.code === 'Escape') {
-                    if (AppState.isPlaying) {
-                        stopPlayback();
-                    } else if (AppState.isRecording) {
-                        stopRecording();
-                    }
+                    if (AppState.isPlaying) stopPlayback();
+                    else if (AppState.isRecording) stopRecording();
                 }
                 
-                // 数字键1-9：选择句子
                 if (e.code.startsWith('Digit') && e.code.length === 6) {
                     const num = parseInt(e.code[5]);
                     if (num >= 1 && num <= AppState.sentences.length) {
@@ -2299,6 +2545,9 @@
                     }
                 }
             });
+            
+            // 初始化波形显示
+            updateWaveform();
         }
 
         // ==================== 启动应用 ====================
