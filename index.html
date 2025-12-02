@@ -953,7 +953,7 @@
                     if (isFirstRecording) {
                         // 第一次录制，自动上传
                         console.log('第一次录制，自动上传到服务器');
-                        showStatus('服务器...', 'success');
+                        showStatus('自动上传中...', 'success');
                         setTimeout(() => {
                             uploadToGitHub();
                         }, 500);
@@ -1266,7 +1266,7 @@ function playRecording() {
                 
                 if (response.ok) {
                     console.log('上传成功:', result);
-                    showStatus('✅ 上传成功！文件已保存到服务器', 'success');
+                    showStatus('✅ 上传成功！', 'success');
                     
                     // 更新句子状态 - 标记为已上传
                     AppState.currentSentence.uploaded = true;
