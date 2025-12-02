@@ -385,8 +385,7 @@
     <div class="container">
         <!-- 头部 -->
         <div class="header">
-            <h1>📝 句子朗读录音系统</h1>
-            <p>朗读句子并自动上传 | 第一次录制自动上传，第二次需手动重新上传</p>
+            <h1>📝 朗读录音系统</h1>
         </div>
 
         <!-- 主内容区 -->
@@ -530,8 +529,8 @@
             statusMessage: document.getElementById('statusMessage')
         };
 
-        // ==================== 初始化应用 ====================
-        async function initApp() {
+                // ==================== 初始化应用 ====================
+                function initApp() {
             console.log('初始化应用...');
 
             // 检查音频兼容性
@@ -543,64 +542,194 @@
                 return;
             }
             
-            // 加载句子数据
-            await loadSentences();
+            // 1. 同步加载句子数据
+            loadSentences();
             
-            // 渲染句子列表
+            // 2. 立即渲染句子列表
             renderSentenceList();
             
-            // 更新统计信息
+            // 3. 更新统计信息
             updateStats();
             
-            // 设置事件监听器
+            // 4. 设置事件监听器
             setupEventListeners();
             
-            // 默认选中第一个句子
+            // 5. 默认选中第一个句子
             if (AppState.sentences.length > 0) {
                 selectSentence(AppState.sentences[0]);
             }
             
             showStatus('系统已就绪，可以开始录音', 'success');
+            
+            // 6. 在页面完全加载后，异步检查服务器状态
+            // 使用setTimeout确保不阻塞页面渲染
+            setTimeout(() => {
+                checkServerFilesInBackground();
+            }, 0);
+        }
+
+        // 后台异步检查服务器文件状态
+        function checkServerFilesInBackground() {
+            console.log('开始在后台异步检查服务器状态...');
+            
+            // 使用一个小延迟，确保页面已经完全渲染
+            setTimeout(async () => {
+                try {
+                    // 记录开始时间
+                    const startTime = Date.now();
+                    
+                    // 遍历所有句子，逐个检查
+                    for (let i = 0; i < AppState.sentences.length; i++) {
+                        const sentence = AppState.sentences[i];
+                        
+                        // 为每个检查添加延迟，避免阻塞
+                        await new Promise(resolve => setTimeout(resolve, 50));
+                        
+                        try {
+                            const fileExists = await checkFileExistsOnServer(sentence.id);
+                            if (sentence.hasUploaded !== fileExists) {
+                                sentence.hasUploaded = fileExists;
+                                
+                                // 更新UI
+                                updateSentenceItem(sentence);
+                            }
+                        } catch (error) {
+                            console.warn(`检查句子 ${sentence.id} 服务器文件失败:`, error);
+                        }
+                    }
+                    
+                    // 保存更新后的状态
+                    saveSentences();
+                    
+                    const endTime = Date.now();
+                    console.log(`后台检查完成，耗时 ${endTime - startTime}ms`);
+                    
+                    // 更新统计
+                    updateStats();
+                    
+                } catch (error) {
+                    console.error('后台检查出错:', error);
+                }
+            }, 100);
         }
 
         // ==================== 句子管理 ====================
-        async function loadSentences() {
+        function loadSentences() {
             const savedKey = `sentences_${AppState.todayDate}`;
             const saved = localStorage.getItem(savedKey);
             
             if (saved) {
                 try {
                     AppState.sentences = JSON.parse(saved);
-                    console.log('从本地存储加载句子数据');
+                    console.log('从本地存储加载句子数据，共', AppState.sentences.length, '条');
                 } catch (e) {
                     console.warn('本地存储数据损坏，使用默认句子');
                     AppState.sentences = [...SAMPLE_SENTENCES];
                 }
             } else {
                 AppState.sentences = [...SAMPLE_SENTENCES];
-                console.log('使用默认句子数据');
+                console.log('使用默认句子数据，共', AppState.sentences.length, '条');
             }
             
-            // 为每个句子检查服务器上是否存在对应文件
-            await checkServerFiles();
-        }
-
-        async function checkServerFiles() {
-            console.log('开始检查服务器文件状态...');
-            
-            for (const sentence of AppState.sentences) {
-                try {
-                    const fileExists = await checkFileExistsOnServer(sentence.id);
-                    sentence.hasUploaded = fileExists;
-                    console.log(`句子 ${sentence.id} 服务器文件状态: ${fileExists ? '已存在' : '不存在'}`);
-                } catch (error) {
-                    console.warn(`检查句子 ${sentence.id} 服务器文件失败:`, error);
+            // 先假设所有句子都未上传，后台检查后会更新
+            AppState.sentences.forEach(sentence => {
+                if (sentence.hasUploaded === undefined) {
                     sentence.hasUploaded = false;
                 }
+            });
+        }
+
+        function updateSentenceItem(sentence) {
+            // 通过sentence.id找到对应的DOM元素
+            const items = document.querySelectorAll('.sentence-item');
+            for (const item of items) {
+                const idElement = item.querySelector('.sentence-meta span:first-child');
+                if (idElement && idElement.textContent === sentence.id) {
+                    const badge = item.querySelector('.status-badge');
+                    const textElement = item.querySelector('.sentence-text');
+                    
+                    if (badge) {
+                        if (sentence.recorded) {
+                            if (sentence.hasUploaded) {
+                                badge.className = 'status-badge status-uploaded';
+                                badge.textContent = '✓ 已上传';
+                            } else {
+                                badge.className = 'status-badge status-recorded';
+                                badge.textContent = '✓ 已录制';
+                            }
+                        } else {
+                            if (sentence.hasUploaded) {
+                                badge.className = 'status-badge status-uploaded';
+                                badge.textContent = '已上传';
+                            } else {
+                                badge.className = 'status-badge status-pending';
+                                badge.textContent = '待录制';
+                            }
+                        }
+                    }
+                    
+                    if (textElement) {
+                        if (sentence.hasUploaded) {
+                            if (!textElement.textContent.startsWith('🌐 ')) {
+                                textElement.textContent = '🌐 ' + sentence.text;
+                            }
+                        } else {
+                            if (textElement.textContent.startsWith('🌐 ')) {
+                                textElement.textContent = sentence.text;
+                            }
+                        }
+                    }
+                    
+                    break;
+                }
             }
+        }
+
+        function renderSentenceList() {
+            console.log('渲染句子列表，共', AppState.sentences.length, '条');
             
-            // 保存更新后的状态
-            saveSentences();
+            elements.sentencesContainer.innerHTML = '';
+            
+            AppState.sentences.forEach((sentence, index) => {
+                const item = document.createElement('div');
+                item.className = `sentence-item ${sentence === AppState.currentSentence ? 'active' : ''}`;
+                item.dataset.sentenceId = sentence.id;
+                
+                // 确定状态徽章
+                let statusClass = 'status-pending';
+                let statusText = '待录制';
+                let prefix = '';
+                
+                if (sentence.recorded) {
+                    if (sentence.hasUploaded) {
+                        statusClass = 'status-uploaded';
+                        statusText = '✓ 已上传';
+                        prefix = '🌐 ';
+                    } else {
+                        statusClass = 'status-recorded';
+                        statusText = '✓ 已录制';
+                    }
+                } else if (sentence.hasUploaded) {
+                    statusClass = 'status-uploaded';
+                    statusText = '已上传';
+                    prefix = '🌐 ';
+                }
+                
+                item.innerHTML = `
+                    <div class="sentence-text">${prefix}${sentence.text}</div>
+                    <div class="sentence-meta">
+                        <span>${sentence.id}</span>
+                        <span class="status-badge ${statusClass}">
+                            ${statusText}
+                        </span>
+                    </div>
+                `;
+                
+                item.onclick = () => selectSentence(sentence);
+                elements.sentencesContainer.appendChild(item);
+            });
+            
+            console.log('句子列表渲染完成');
         }
 
         async function checkFileExistsOnServer(sentenceId) {
@@ -611,7 +740,7 @@
                 const response = await fetch(
                     `https://api.github.com/repos/${AppState.config.REPOSITORY}/contents/${filePath}`,
                     {
-                        method: 'HEAD',
+                        method: 'GET',
                         headers: {
                             'Authorization': `token ${AppState.config.TOKEN}`,
                             'Accept': 'application/vnd.github.v3+json',
@@ -620,7 +749,6 @@
                     }
                 );
                 
-                // 如果状态码是200，文件存在
                 return response.status === 200;
             } catch (error) {
                 console.log(`检查文件 ${filePath} 失败:`, error);
