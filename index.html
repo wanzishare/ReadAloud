@@ -230,7 +230,7 @@
             background: #f8f9fa;
             border-radius: 10px;
             margin: 20px 0;
-            position: relative;
+            position:relative;
             overflow: hidden;
         }
 
@@ -240,54 +240,6 @@
             width: 3px;
             background: #667eea;
             border-radius: 3px 3px 0 0;
-        }
-
-        /* GitHub配置显示 */
-        .github-config {
-            background: #f8f9fa;
-            padding: 20px;
-            border-radius: 10px;
-            margin-top: 30px;
-            position: relative;;
-            display: none;
-        }
-
-        .config-display {
-            padding: 15px;
-            background: white;
-            border-radius: 8px;
-            border: 1px solid #e0e0e0;
-            margin-bottom: 15px;
-        }
-
-        .config-info {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            padding: 8px 0;
-            border-bottom: 1px solid #f0f0f0;
-        }
-
-        .config-info:last-child {
-            border-bottom: none;
-        }
-
-        .config-label {
-            font-weight: 600;
-            color: #555;
-        }
-
-        .config-value {
-            color: #2196F3;
-            font-family: monospace;
-            font-size: 14px;
-        }
-
-        .masked-token {
-            color: #666;
-            font-family: monospace;
-            font-size: 14px;
-            letter-spacing: 2px;
         }
 
         /* 播放指示器 */
@@ -486,24 +438,6 @@
                     </div>
                 </div>
 
-                <!-- GitHub配置显示 -->
-                <div class="github-config">
-                    <h3>⚙️ GitHub配置状态</h3>
-                    <div class="config-display">
-                        <div class="config-info">
-                            <span class="config-label">仓库:</span>
-                            <span class="config-value" id="repoDisplay"></span>
-                        </div>
-                        <div class="config-info">
-                            <span class="config-label">Token状态:</span>
-                            <span class="masked-token" id="tokenStatus">●●●●●●●●●●●●●●●●</span>
-                        </div>
-                    </div>
-                    <div class="config-info" id="configMessage">
-                        <em>配置已加载，可以直接开始录音</em>
-                    </div>
-                </div>
-
                 <!-- 统计信息 -->
                 <div class="stats">
                     <div class="stat-item">
@@ -592,15 +526,12 @@
             totalSentences: document.getElementById('totalSentences'),
             completedSentences: document.getElementById('completedSentences'),
             uploadedSentences: document.getElementById('uploadedSentences'),
-            repoDisplay: document.getElementById('repoDisplay'),
-            tokenStatus: document.getElementById('tokenStatus'),
-            configMessage: document.getElementById('configMessage'),
             playbackIndicator: document.getElementById('playbackIndicator'),
             statusMessage: document.getElementById('statusMessage')
         };
 
         // ==================== 初始化应用 ====================
-        function initApp() {
+        async function initApp() {
             console.log('初始化应用...');
 
             // 检查音频兼容性
@@ -612,18 +543,8 @@
                 return;
             }
             
-            // 显示配置信息
-            elements.repoDisplay.textContent = AppState.config.REPOSITORY;
-            
-            // 显示Token状态
-            const token = AppState.config.TOKEN;
-            if (token.length > 8) {
-                const masked = '●'.repeat(12) + token.slice(-8);
-                elements.tokenStatus.textContent = masked;
-            }
-            
             // 加载句子数据
-            loadSentences();
+            await loadSentences();
             
             // 渲染句子列表
             renderSentenceList();
@@ -643,7 +564,7 @@
         }
 
         // ==================== 句子管理 ====================
-        function loadSentences() {
+        async function loadSentences() {
             const savedKey = `sentences_${AppState.todayDate}`;
             const saved = localStorage.getItem(savedKey);
             
@@ -660,12 +581,51 @@
                 console.log('使用默认句子数据');
             }
             
-            // 确保每个句子都有 hasUploaded 属性
-            AppState.sentences.forEach(sentence => {
-                if (sentence.hasUploaded === undefined) {
+            // 为每个句子检查服务器上是否存在对应文件
+            await checkServerFiles();
+        }
+
+        async function checkServerFiles() {
+            console.log('开始检查服务器文件状态...');
+            
+            for (const sentence of AppState.sentences) {
+                try {
+                    const fileExists = await checkFileExistsOnServer(sentence.id);
+                    sentence.hasUploaded = fileExists;
+                    console.log(`句子 ${sentence.id} 服务器文件状态: ${fileExists ? '已存在' : '不存在'}`);
+                } catch (error) {
+                    console.warn(`检查句子 ${sentence.id} 服务器文件失败:`, error);
                     sentence.hasUploaded = false;
                 }
-            });
+            }
+            
+            // 保存更新后的状态
+            saveSentences();
+        }
+
+        async function checkFileExistsOnServer(sentenceId) {
+            const fileName = `${AppState.todayDate}_${sentenceId}.wav`;
+            const filePath = `recordings/${AppState.todayDate}/${fileName}`;
+            
+            try {
+                const response = await fetch(
+                    `https://api.github.com/repos/${AppState.config.REPOSITORY}/contents/${filePath}`,
+                    {
+                        method: 'HEAD',
+                        headers: {
+                            'Authorization': `token ${AppState.config.TOKEN}`,
+                            'Accept': 'application/vnd.github.v3+json',
+                            'User-Agent': 'AudioRecordingApp/1.0'
+                        }
+                    }
+                );
+                
+                // 如果状态码是200，文件存在
+                return response.status === 200;
+            } catch (error) {
+                console.log(`检查文件 ${filePath} 失败:`, error);
+                return false;
+            }
         }
 
         function saveSentences() {
@@ -976,119 +936,118 @@
         }
 
         // ==================== 播放功能 ====================
-        // ==================== 播放功能 ====================
-function playRecording() {
-    if (AppState.isPlaying) {
-        console.log('已经在播放中');
-        return;
-    }
-    
-    if (!AppState.currentSentence) {
-        showStatus('请先选择一个句子', 'error');
-        return;
-    }
-    
-    let audioToPlay = null;
-    
-    // 优先使用内存中的Blob
-    if (AppState.audioBlob) {
-        console.log('使用内存中的音频播放');
-        audioToPlay = AppState.audioBlob;
-    } else {
-        // 从本地存储加载
-        const audioKey = `audio_${AppState.todayDate}_${AppState.currentSentence.id}`;
-        const audioData = localStorage.getItem(audioKey);
-        
-        if (!audioData) {
-            showStatus('没有找到录音文件', 'error');
-            return;
-        }
-        
-        try {
-            const byteString = atob(audioData.split(',')[1]);
-            const mimeString = audioData.split(',')[0].split(':')[1].split(';')[0];
-            const ab = new ArrayBuffer(byteString.length);
-            const ia = new Uint8Array(ab);
-            
-            for (let i = 0; i < byteString.length; i++) {
-                ia[i] = byteString.charCodeAt(i);
+        function playRecording() {
+            if (AppState.isPlaying) {
+                console.log('已经在播放中');
+                return;
             }
             
-            audioToPlay = new Blob([ab], { type: mimeString });
-            AppState.audioBlob = audioToPlay; // 缓存
-        } catch (error) {
-            console.error('加载音频失败:', error);
-            showStatus('加载音频失败', 'error');
-            return;
+            if (!AppState.currentSentence) {
+                showStatus('请先选择一个句子', 'error');
+                return;
+            }
+            
+            let audioToPlay = null;
+            
+            // 优先使用内存中的Blob
+            if (AppState.audioBlob) {
+                console.log('使用内存中的音频播放');
+                audioToPlay = AppState.audioBlob;
+            } else {
+                // 从本地存储加载
+                const audioKey = `audio_${AppState.todayDate}_${AppState.currentSentence.id}`;
+                const audioData = localStorage.getItem(audioKey);
+                
+                if (!audioData) {
+                    showStatus('没有找到录音文件', 'error');
+                    return;
+                }
+                
+                try {
+                    const byteString = atob(audioData.split(',')[1]);
+                    const mimeString = audioData.split(',')[0].split(':')[1].split(';')[0];
+                    const ab = new ArrayBuffer(byteString.length);
+                    const ia = new Uint8Array(ab);
+                    
+                    for (let i = 0; i < byteString.length; i++) {
+                        ia[i] = byteString.charCodeAt(i);
+                    }
+                    
+                    audioToPlay = new Blob([ab], { type: mimeString });
+                    AppState.audioBlob = audioToPlay; // 缓存
+                } catch (error) {
+                    console.error('加载音频失败:', error);
+                    showStatus('加载音频失败', 'error');
+                    return;
+                }
+            }
+            
+            if (!audioToPlay) {
+                showStatus('没有可播放的音频', 'error');
+                return;
+            }
+            
+            // 创建音频对象
+            const audioUrl = URL.createObjectURL(audioToPlay);
+            const audio = new Audio(audioUrl);
+            
+            // 重置播放时间
+            AppState.audioCurrentTime = 0;
+            AppState.audioDuration = 0;
+            
+            // 设置播放状态
+            AppState.isPlaying = true;
+            AppState.currentAudio = audio;
+            elements.playBtn.innerHTML = '<span>⏸️ 正在播放...</span>';
+            elements.playBtn.classList.add('playing');
+            elements.playbackIndicator.style.display = 'block';
+            
+            // 添加播放动画
+            document.querySelector('.recording-area').classList.add('playing');
+            
+            // 播放事件处理
+            audio.onloadedmetadata = () => {
+                // 获取音频总时长
+                AppState.audioDuration = audio.duration;
+                console.log('音频时长:', AppState.audioDuration, '秒');
+            };
+            
+            audio.onplay = () => {
+                console.log('音频开始播放');
+                
+                // 开始播放计时器
+                startPlaybackTimer();
+            };
+            
+            audio.ontimeupdate = () => {
+                // 更新当前播放时间
+                AppState.audioCurrentTime = audio.currentTime;
+                
+                // 更新计时器显示
+                updatePlaybackTimer();
+            };
+            
+            audio.onended = () => {
+                console.log('音频播放结束');
+                stopPlayback();
+                URL.revokeObjectURL(audioUrl);
+            };
+            
+            audio.onerror = (error) => {
+                console.error('播放错误:', error);
+                stopPlayback();
+                showStatus('播放失败', 'error');
+                URL.revokeObjectURL(audioUrl);
+            };
+            
+            // 开始播放
+            audio.play().catch(error => {
+                console.error('播放失败:', error);
+                stopPlayback();
+                showStatus('播放失败：' + error.message, 'error');
+                URL.revokeObjectURL(audioUrl);
+            });
         }
-    }
-    
-    if (!audioToPlay) {
-        showStatus('没有可播放的音频', 'error');
-        return;
-    }
-    
-    // 创建音频对象
-    const audioUrl = URL.createObjectURL(audioToPlay);
-    const audio = new Audio(audioUrl);
-    
-    // 重置播放时间
-    AppState.audioCurrentTime = 0;
-    AppState.audioDuration = 0;
-    
-    // 设置播放状态
-    AppState.isPlaying = true;
-    AppState.currentAudio = audio;
-    elements.playBtn.innerHTML = '<span>⏸️ 正在播放...</span>';
-    elements.playBtn.classList.add('playing');
-    elements.playbackIndicator.style.display = 'block';
-    
-    // 添加播放动画
-    document.querySelector('.recording-area').classList.add('playing');
-    
-    // 播放事件处理
-    audio.onloadedmetadata = () => {
-        // 获取音频总时长
-        AppState.audioDuration = audio.duration;
-        console.log('音频时长:', AppState.audioDuration, '秒');
-    };
-    
-    audio.onplay = () => {
-        console.log('音频开始播放');
-        
-        // 开始播放计时器
-        startPlaybackTimer();
-    };
-    
-    audio.ontimeupdate = () => {
-        // 更新当前播放时间
-        AppState.audioCurrentTime = audio.currentTime;
-        
-        // 更新计时器显示
-        updatePlaybackTimer();
-    };
-    
-    audio.onended = () => {
-        console.log('音频播放结束');
-        stopPlayback();
-        URL.revokeObjectURL(audioUrl);
-    };
-    
-    audio.onerror = (error) => {
-        console.error('播放错误:', error);
-        stopPlayback();
-        showStatus('播放失败', 'error');
-        URL.revokeObjectURL(audioUrl);
-    };
-    
-    // 开始播放
-    audio.play().catch(error => {
-        console.error('播放失败:', error);
-        stopPlayback();
-        showStatus('播放失败：' + error.message, 'error');
-        URL.revokeObjectURL(audioUrl);
-    });
-}
 
         // ==================== 播放计时器函数 ====================
         function startPlaybackTimer() {
@@ -1122,7 +1081,6 @@ function playRecording() {
             const milliseconds = Math.floor((displayTime % 1) * 100).toString().padStart(2, '0');
             
             // 显示播放时间
-            // elements.timer.textContent = `${minutes}:${seconds}.${milliseconds}`;
             elements.timer.textContent = `${minutes}:${seconds}`;
             
             // 如果音频有总时长，显示进度百分比
@@ -1160,25 +1118,6 @@ function playRecording() {
             // 重置计时器显示
             elements.timer.textContent = '00:00';
             elements.progressFill.style.width = '0%';
-        }
-
-        function stopPlayback() {
-            AppState.isPlaying = false;
-            
-            // 停止音频
-            if (AppState.currentAudio) {
-                AppState.currentAudio.pause();
-                AppState.currentAudio.currentTime = 0;
-                AppState.currentAudio = null;
-            }
-            
-            // 恢复按钮状态
-            elements.playBtn.innerHTML = '<span>▶️ 播放录音</span>';
-            elements.playBtn.classList.remove('playing');
-            elements.playbackIndicator.style.display = 'none';
-            
-            // 移除动画
-            document.querySelector('.recording-area').classList.remove('playing');
         }
 
         // ==================== GitHub上传 ====================
@@ -1281,7 +1220,7 @@ function playRecording() {
                     renderSentenceList();
                     updateStats();
                     
-                } else {REPOSITORY
+                } else {
                     console.error('上传失败:', result);
                     throw new Error(result.message || '上传失败');
                 }
