@@ -2423,13 +2423,14 @@
                 }
                 
                 // 添加序号 - 在ID前面加上序号
+                // <span>${sentence.id}</span>
                 // const displayId = `${prefix}${(index + 1).toString().padStart(2, '0')}.`;
                 const displayId = `${(index + 1).toString().padStart(2, '0')}. `;
                 
                 item.innerHTML = `
                     <div class="sentence-text">${displayId}${sentence.text}</div>
                     <div class="sentence-meta">
-                        <span>${sentence.id}</span>
+                        <span></span>
                         <span class="status-badge ${statusClass}">
                             ${statusText}
                         </span>
