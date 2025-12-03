@@ -2581,7 +2581,14 @@
             AppState.audioBlob = null;
             
             // 更新UI显示
-            elements.currentSentenceId.textContent = sentence.id;
+            // elements.currentSentenceId.textContent = sentence.id;
+            // 显示选中的句子的下标（从1开始）
+            const idx = AppState.sentences.findIndex(s => s.id === sentence.id);
+            if (idx >= 0) {
+                elements.currentSentenceId.textContent = (idx + 1).toString().padStart(2, '0');
+            } else {
+                elements.currentSentenceId.textContent = '';
+            }
             elements.currentSentenceText.textContent = sentence.text;
             elements.timer.textContent = '00:00';
             elements.progressFill.style.width = '0%';
