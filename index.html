@@ -642,6 +642,8 @@
             API_BASE: 'https://gitee.com/api/v5',
             // 上传文件目录
             RECORDINGS_DIR: 'recordings/2A',
+            // xlsx目录文件
+            XLSX_DIR: 'xlsx/read_aloud_2A.xlsx',
         };
 
 
@@ -731,7 +733,7 @@
             lastDownloadTime: null,
             sentences: [], // 初始为空，从Excel加载
             excelData: null, // 存储Excel数据
-            excelUrl: 'xlsx/read_aloud_2A.xlsx', // Excel文件路径
+            excelUrl: `${GITEE_CONFIG.XLSX_DIR}`, // Excel文件路径
             audioConfig: {
                 recordingMimeType: AUDIO_CONFIG.getSupportedMimeType(),
                 playableFormat: 'audio/webm'
