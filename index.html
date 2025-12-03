@@ -1085,35 +1085,41 @@
                 console.log(`尝试检查格式: ${format}, 路径: ${filePath}`);
                 
                 try {
-                    const response = await fetch(
-                        `${GITEE_CONFIG.API_BASE}/repos/${GITEE_CONFIG.REPOSITORY}/contents/${filePath}?access_token=${GITEE_CONFIG.TOKEN}`,
-                        {
-                            method: 'GET',
-                            mode: 'cors',
-                            headers: {
-                                'Accept': 'application/json'
-                            },
-                            signal: AbortSignal.timeout(3000) // 缩短超时时间
-                        }
-                    );
+                    const sha = await getGiteeFileSHA(filePath);
                     
-                    if (response.status === 200) {
-                        const responseData = await response.json();
-                        
-                        // 如果返回的是空数组 []，表示文件不存在
-                        if (Array.isArray(responseData) && responseData.length === 0) {
-                            console.log(`❌ 文件不存在（返回空数组）: ${filePath}`);
-                            continue; // 继续检查下一个格式
-                        }
-                        
-                        // 如果返回的是对象且有sha字段，表示文件存在
-                        if (responseData && typeof responseData === 'object' && responseData.sha) {
-                            console.log(`✅ 文件存在（格式: ${format}）: ${filePath}`);
-                            return true;
-                        }
-                    } else if (response.status === 404) {
-                        console.log(`❌ 文件不存在（404）: ${filePath}`);
-                        continue; // 继续检查下一个格式
+                    if (sha) {
+                        console.log(`✅ 文件存在（格式: ${format}）: ${filePath}`);
+                        return true;
+                    }
+                } catch (error) {
+                    console.log(`检查格式 ${format} 失败:`, error.message);
+                    continue; // 继续检查下一个格式
+                }
+            }
+            
+            // 如果所有格式都检查完毕都没找到
+            console.log(`❌ 所有格式检查完毕，文件 ${fileNameBase} 不存在`);
+            return false;
+        }async function checkFileExistsOnServer(sentenceId) {    
+            // 支持的音频格式列表
+            const supportedFormats = ['webm', 'mp4', 'wav', 'ogg', 'm4a'];
+            const fileNameBase = `${AppState.selectedDate}_${sentenceId}`;
+            
+            console.log(`检查Gitee文件是否存在，基本名称: ${fileNameBase}`);
+            
+            // 按顺序检查各种格式
+            for (const format of supportedFormats) {
+                const fileName = `${fileNameBase}.${format}`;
+                const filePath = `recordings/${AppState.selectedDate}/${fileName}`;
+                
+                console.log(`尝试检查格式: ${format}, 路径: ${filePath}`);
+                
+                try {
+                    const sha = await getGiteeFileSHA(filePath);
+                    
+                    if (sha) {
+                        console.log(`✅ 文件存在（格式: ${format}）: ${filePath}`);
+                        return true;
                     }
                 } catch (error) {
                     console.log(`检查格式 ${format} 失败:`, error.message);
@@ -1126,6 +1132,7 @@
             return false;
         }
 
+        
         async function checkServerFilesInBackground() {
             console.log(`开始在后台检查 ${AppState.selectedDate} 的服务器状态...`);
             
@@ -2311,6 +2318,73 @@
             }
         }
 
+        async function deleteAllSentenceFiles(sentenceId) {
+            try {
+                console.log(`开始删除句子 ${sentenceId} 的所有格式文件`);
+                
+                const supportedFormats = ['webm', 'mp4', 'wav', 'ogg', 'm4a'];
+                const fileNameBase = `${AppState.selectedDate}_${sentenceId}`;
+                let deletedFiles = 0;
+                
+                // 遍历所有支持的格式
+                for (const format of supportedFormats) {
+                    const fileName = `${fileNameBase}.${format}`;
+                    const filePath = `recordings/${AppState.selectedDate}/${fileName}`;
+                    
+                    try {
+                        // 检查文件是否存在
+                        const sha = await getGiteeFileSHA(filePath);
+                        
+                        if (sha) {
+                            console.log(`找到文件 ${fileName}，开始删除`);
+                            
+                            // 删除文件
+                            const response = await fetch(
+                                `${GITEE_CONFIG.API_BASE}/repos/${GITEE_CONFIG.REPOSITORY}/contents/${filePath}?access_token=${GITEE_CONFIG.TOKEN}`,
+                                {
+                                    method: 'DELETE',
+                                    mode: 'cors',
+                                    headers: {
+                                        'Content-Type': 'application/json;charset=UTF-8'
+                                    },
+                                    body: JSON.stringify({
+                                        access_token: GITEE_CONFIG.TOKEN,
+                                        sha: sha,
+                                        message: `清理旧文件: ${fileName}`,
+                                        committer: {
+                                            name: 'Audio Recording App',
+                                            email: 'noreply@gitee.com'
+                                        }
+                                    })
+                                }
+                            );
+                            
+                            if (response.ok) {
+                                const result = await response.json();
+                                console.log(`✅ 删除成功: ${fileName}`);
+                                deletedFiles++;
+                            } else {
+                                console.log(`❌ 删除失败 ${fileName}:`, response.status);
+                            }
+                        } else {
+                            console.log(`文件不存在: ${fileName}`);
+                        }
+                    } catch (error) {
+                        console.log(`删除文件 ${fileName} 时出错:`, error.message);
+                        // 继续删除其他文件
+                    }
+                }
+                
+                console.log(`删除完成，共删除 ${deletedFiles} 个文件`);
+                return deletedFiles;
+                
+            } catch (error) {
+                console.error('删除文件过程出错:', error);
+                throw error;
+            }
+        }
+
+        // 修改后的上传函数：上传前删除所有格式的文件
         async function uploadToGitee() {
             if (!AppState.audioBlob) {
                 showStatus('请先录制音频！', 'error');
@@ -2331,7 +2405,12 @@
                 elements.uploadBtn.innerHTML = '<span>⏳ 上传中...</span>';
                 elements.uploadBtn.disabled = true;
                 
-                // 根据音频Blob的实际MIME类型确定文件扩展名
+                // 1. 上传前先删除该句子所有格式的旧文件
+                console.log('开始清理旧文件...');
+                const deletedCount = await deleteAllSentenceFiles(AppState.currentSentence.id);
+                console.log(`清理了 ${deletedCount} 个旧文件`);
+                
+                // 2. 根据音频Blob的实际MIME类型确定文件扩展名
                 const mimeType = AppState.audioBlob.type || 'audio/webm';
                 let extension = 'webm'; // 默认
                 
@@ -2345,7 +2424,7 @@
                     extension = 'webm';
                 }
                 
-                // 统一使用这种命名格式：日期_句子ID.扩展名
+                // 3. 统一使用这种命名格式：日期_句子ID.扩展名
                 const fileName = `${AppState.selectedDate}_${AppState.currentSentence.id}.${extension}`;
                 const filePath = `recordings/${AppState.selectedDate}/${fileName}`;
                 
@@ -2356,13 +2435,11 @@
                     size: AppState.audioBlob.size
                 });
                 
-                // 转换为base64
+                // 4. 转换为base64
                 const base64Data = await blobToBase64(AppState.audioBlob);
                 const pureBase64 = base64Data.split(',')[1];
                 
-                // 检查文件是否已存在（支持多种格式）
-                const existingSHA = await getGiteeFileSHAForFormat(filePath);
-                
+                // 5. 由于已经删除了旧文件，这里总是创建新文件
                 const requestData = {
                     access_token: GITEE_CONFIG.TOKEN,
                     content: pureBase64,
@@ -2372,11 +2449,6 @@
                         email: 'noreply@gitee.com'
                     }
                 };
-                
-                if (existingSHA) {
-                    requestData.sha = existingSHA;
-                    console.log('文件已存在，将更新现有文件');
-                }
                 
                 console.log('发送上传请求...');
                 const response = await fetch(
@@ -2406,15 +2478,15 @@
                     console.log('上传到Gitee成功');
                     showStatus(`✅ 上传成功！格式: ${extension}`, 'success');
                     
-                    // 标记为已上传
+                    // 6. 标记为已上传
                     AppState.currentSentence.hasUploaded = true;
                     AppState.currentSentence.uploadedAt = new Date().toISOString();
                     
-                    // 更新按钮状态
+                    // 7. 更新按钮状态
                     elements.uploadBtn.textContent = '📤 重新上传';
                     elements.uploadBtn.disabled = false;
                     
-                    // 保存状态并更新UI
+                    // 8. 保存状态并更新UI
                     saveSentencesForSelectedDate();
                     updateSentenceItemInUI(AppState.currentSentence);
                     updateStats();
@@ -2434,7 +2506,7 @@
         }
 
         // 辅助函数：获取特定格式文件的SHA
-        async function getGiteeFileSHAForFormat(filePath) {
+        async function getGiteeFileSHA(filePath) {
             try {
                 const response = await fetch(
                     `${GITEE_CONFIG.API_BASE}/repos/${GITEE_CONFIG.REPOSITORY}/contents/${filePath}?access_token=${GITEE_CONFIG.TOKEN}`,
@@ -2447,15 +2519,30 @@
                 
                 if (response.ok) {
                     const data = await response.json();
-                    // 检查是否是空数组
+                    
+                    // 检查是否是空数组（表示目录存在但文件不存在）
                     if (Array.isArray(data) && data.length === 0) {
+                        console.log(`目录存在但文件不存在: ${filePath}`);
                         return null;
                     }
-                    return data.sha;
+                    
+                    // 检查是否有sha字段
+                    if (data && data.sha) {
+                        return data.sha;
+                    }
+                    
+                    console.log(`文件没有sha字段: ${filePath}`);
+                    return null;
+                } else if (response.status === 404) {
+                    // 文件不存在
+                    console.log(`文件不存在 (404): ${filePath}`);
+                    return null;
+                } else {
+                    console.log(`获取文件SHA失败 (${response.status}): ${filePath}`);
+                    return null;
                 }
-                return null;
             } catch (error) {
-                console.log('文件不存在或网络错误:', error);
+                console.log(`获取文件SHA时出错 ${filePath}:`, error.message);
                 return null;
             }
         }
