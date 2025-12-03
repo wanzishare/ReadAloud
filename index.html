@@ -4,13 +4,40 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>句子朗读录音系统</title>
+    <div class="browser-notice" id="browserNotice" style="display: none;">
+        <div class="notice-content">
+            <span>⚠️ 检测到您正在使用Safari浏览器。为获得最佳录音体验，建议：</span>
+            <ul>
+                <li>使用Chrome或Edge浏览器</li>
+                <li>确保系统已更新至最新版本</li>
+                <li>允许网站访问麦克风权限</li>
+            </ul>
+            <button onclick="document.getElementById('browserNotice').style.display='none'">知道了</button>
+        </div>
+    </div>
     <style>
         * {
             margin: 0;
             padding: 0;
             box-sizing: border-box;
         }
-
+        .browser-notice {
+            position: fixed;
+            top: 10px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: #fff3cd;
+            border: 1px solid #ffeaa7;
+            border-radius: 5px;
+            padding: 10px 15px;
+            z-index: 9999;
+            max-width: 500px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        .notice-content ul {
+            margin: 5px 0;
+            padding-left: 20px;
+        }
         body {
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
@@ -563,6 +590,47 @@
 
     <script>
         // ==================== 配置文件 ====================
+        const AUDIO_CONFIG = {
+            // 检测浏览器支持的格式
+            getSupportedMimeType() {
+                const types = [
+                    'audio/webm;codecs=opus',
+                    'audio/webm',
+                    'audio/mp4',
+                    'audio/mp4;codecs=mp4a.40.2',
+                    'audio/ogg;codecs=opus',
+                    'audio/wav'
+                ];
+                
+                for (let type of types) {
+                    if (MediaRecorder.isTypeSupported(type)) {
+                        console.log('支持格式:', type);
+                        return type;
+                    }
+                }
+                return 'audio/webm'; // 默认回退
+            },
+            
+            // 获取播放器支持的格式
+            getPlayableFormat(blob) {
+                const audio = new Audio();
+                const formats = [
+                    { type: 'audio/webm', test: 'audio/webm;codecs=opus' },
+                    { type: 'audio/mp4', test: 'audio/mp4;codecs=mp4a.40.2' },
+                    { type: 'audio/wav', test: 'audio/wav' },
+                    { type: 'audio/ogg', test: 'audio/ogg;codecs=opus' }
+                ];
+                
+                for (let format of formats) {
+                    if (audio.canPlayType(format.test)) {
+                        return format.type;
+                    }
+                }
+                return 'audio/webm';
+            }
+        };
+
+
         // 注释掉GitHub配置，因为主要使用Gitee
         const GITHUB_CONFIG = {
             // 保留但不使用
@@ -631,7 +699,11 @@
             audioCurrentTime: 0,
             audioDuration: 0,
             isDownloading: false,
-            lastDownloadTime: null
+            lastDownloadTime: null,
+            audioConfig: {
+                recordingMimeType: AUDIO_CONFIG.getSupportedMimeType(),
+                playableFormat: 'audio/webm'
+            }
         };
 
         // ==================== DOM元素 ====================
@@ -654,6 +726,34 @@
             statusMessage: document.getElementById('statusMessage'),
             loadingIndicator: document.getElementById('loadingIndicator')
         };
+
+        // 检测苹果设备并调整配置
+        function detectAppleDeviceAndAdjust() {
+            const isSafari = /^((?!chrome|android).)*safari/i.test(navigator.userAgent);
+            const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
+            const isMac = /Macintosh|MacIntel|MacPPC|Mac68K/.test(navigator.userAgent) && !window.MSStream;
+            
+            console.log('设备检测:', { isSafari, isIOS, isMac });
+            
+            if (isIOS || isSafari) {
+                console.log('苹果/Safari设备检测到，启用兼容模式');
+                
+                // Safari对WebM支持有限，优先使用MP4
+                const audio = new Audio();
+                if (audio.canPlayType('audio/mp4;codecs=mp4a.40.2')) {
+                    AppState.audioConfig.recordingMimeType = 'audio/mp4';
+                    AppState.audioConfig.playableFormat = 'audio/mp4';
+                } else if (audio.canPlayType('audio/wav')) {
+                    AppState.audioConfig.recordingMimeType = 'audio/wav';
+                    AppState.audioConfig.playableFormat = 'audio/wav';
+                }
+                
+                // 显示提示
+                showStatus('检测到苹果设备，已启用兼容模式', 'info');
+                return true;
+            }
+            return false;
+        }
 
         // 添加一个日期验证和修复函数
         function validateAndFixDates() {
@@ -687,7 +787,10 @@
         function initApp() {
             console.log('初始化应用...');
             
-            // 检查音频兼容性
+            // 1. 检测苹果设备并调整配置
+            detectAppleDeviceAndAdjust();
+            
+            // 2. 检查音频兼容性
             checkAudioCompatibility();
             
             // 检查Gitee配置
@@ -1636,6 +1739,7 @@
         async function startRecording() {
             try {
                 console.log('开始录音...');
+                console.log('使用的音频格式:', AppState.audioConfig.recordingMimeType);
                 
                 // 停止正在播放的录音
                 if (AppState.isPlaying) {
@@ -1652,31 +1756,50 @@
                 elements.timer.textContent = '00:00';
                 elements.progressFill.style.width = '0%';
                 
+                // 苹果设备特殊配置
+                const audioConstraints = {
+                    echoCancellation: true,
+                    noiseSuppression: true,
+                    channelCount: 1
+                };
+                
+                // 苹果设备需要指定采样率
+                if (navigator.userAgent.match(/iPad|iPhone|iPod/i)) {
+                    audioConstraints.sampleRate = 48000;
+                    console.log('iOS设备，设置采样率48000Hz');
+                } else {
+                    audioConstraints.sampleRate = 44100;
+                }
+                
                 // 请求麦克风权限
                 const stream = await navigator.mediaDevices.getUserMedia({
-                    audio: {
-                        echoCancellation: true,
-                        noiseSuppression: true,
-                        sampleRate: 44100,
-                        channelCount: 1
-                    }
+                    audio: audioConstraints
                 });
                 
-                // 创建录音器
-                AppState.recorder = new MediaRecorder(stream);
+                // 创建录音器，使用检测到的格式
+                let mimeType = AppState.audioConfig.recordingMimeType;
+                
+                // Safari兼容性处理
+                if (MediaRecorder.isTypeSupported(mimeType)) {
+                    AppState.recorder = new MediaRecorder(stream, { mimeType });
+                } else {
+                    console.warn('首选格式不支持，使用默认格式');
+                    AppState.recorder = new MediaRecorder(stream);
+                }
                 
                 // 收集音频数据
                 AppState.recorder.ondataavailable = (event) => {
                     if (event.data && event.data.size > 0) {
                         AppState.audioChunks.push(event.data);
+                        console.log('收到音频数据块:', event.data.size, 'bytes');
                     }
                 };
                 
-                // 录音停止时的处理 - 在这里设置一次，不要在其他地方覆盖
+                // 录音停止时的处理
                 AppState.recorder.onstop = handleRecordingStop;
                 
                 // 开始录音
-                AppState.recorder.start(100);
+                AppState.recorder.start(100); // 每100ms收集一次数据
                 AppState.isRecording = true;
                 
                 // 更新按钮状态
@@ -1692,7 +1815,21 @@
                 
             } catch (error) {
                 console.error('录音错误:', error);
-                showStatus('无法访问麦克风：' + error.message, 'error');
+                
+                // 苹果设备特定错误处理
+                if (navigator.userAgent.match(/iPad|iPhone|iPod/i)) {
+                    if (error.name === 'NotFoundError' || error.name === 'DevicesNotFoundError') {
+                        showStatus('未找到麦克风设备', 'error');
+                    } else if (error.name === 'NotAllowedError' || error.name === 'PermissionDeniedError') {
+                        showStatus('麦克风访问被拒绝，请检查系统设置', 'error');
+                    } else if (error.name === 'NotSupportedError') {
+                        showStatus('当前浏览器不支持录音功能', 'error');
+                    } else {
+                        showStatus('录音失败：' + error.message, 'error');
+                    }
+                } else {
+                    showStatus('无法访问麦克风：' + error.message, 'error');
+                }
             }
         }
 
@@ -1865,18 +2002,19 @@
 
         function playRecording() {
             if (AppState.isPlaying) return;
-            
+    
             if (!AppState.currentSentence) {
                 showStatus('请先选择一个句子', 'error');
                 return;
             }
             
-            let audioToPlay = null;
+            console.log('=== 播放兼容性处理 ===');
+            console.log('当前设备:', navigator.userAgent);
             
-            if (AppState.audioBlob && AppState.audioBlob.size > 0) {
-                audioToPlay = AppState.audioBlob;
-                console.log('使用现有的音频Blob，大小:', audioToPlay.size, 'bytes');
-            } else {
+            let audioToPlay = AppState.audioBlob;
+            
+            // 如果没有blob，从本地存储加载
+            if (!audioToPlay || audioToPlay.size === 0) {
                 const audioKey = `audio_${AppState.selectedDate}_${AppState.currentSentence.id}`;
                 const audioData = localStorage.getItem(audioKey);
                 
@@ -1887,27 +2025,61 @@
                 
                 try {
                     audioToPlay = dataURItoBlob(audioData);
-                    console.log('从本地存储加载音频，大小:', audioToPlay.size, 'bytes');
                     AppState.audioBlob = audioToPlay;
                 } catch (error) {
                     console.error('加载音频失败:', error);
                     showStatus('音频文件损坏，请重新录制', 'error');
-                    // 清除损坏的数据
                     localStorage.removeItem(audioKey);
                     return;
                 }
             }
             
-            if (!audioToPlay || audioToPlay.size === 0) {
-                showStatus('音频数据为空，请重新录制', 'error');
-                return;
+            // 苹果设备特殊处理
+            const isAppleDevice = navigator.userAgent.match(/iPad|iPhone|iPod|Macintosh/i);
+            
+            if (isAppleDevice) {
+                console.log('苹果设备播放优化');
+                
+                // 检查音频格式是否适合苹果设备
+                const audio = new Audio();
+                const blobType = audioToPlay.type || 'audio/webm';
+                
+                if (blobType.includes('webm') && !audio.canPlayType('audio/webm;codecs=opus')) {
+                    console.log('苹果设备可能不支持WebM，尝试格式处理');
+                    
+                    // 尝试重新包装为MP4格式（简化版）
+                    try {
+                        audioToPlay = repackageForApple(audioToPlay);
+                    } catch (e) {
+                        console.warn('格式重包装失败:', e);
+                    }
+                }
             }
             
-            // 检查音频格式
-            console.log('音频格式:', audioToPlay.type);
-            
+            // 创建音频URL
             const audioUrl = URL.createObjectURL(audioToPlay);
             const audio = new Audio(audioUrl);
+            
+            console.log('播放音频信息:', {
+                urlType: audioUrl.substring(0, 50),
+                blobType: audioToPlay.type,
+                size: audioToPlay.size
+            });
+            
+            // 苹果设备：预加载和静音播放以触发权限
+            if (isAppleDevice) {
+                audio.preload = 'auto';
+                audio.muted = true; // 先静音，避免自动播放限制
+                
+                // 设置音量渐变避免爆音
+                audio.volume = 0;
+                setTimeout(() => {
+                    if (AppState.isPlaying) {
+                        audio.volume = 1.0;
+                        audio.muted = false;
+                    }
+                }, 100);
+            }
             
             // 添加音频格式检查
             audio.preload = 'metadata';
@@ -2016,6 +2188,32 @@
             });
         }
 
+        // 苹果设备音频重新包装函数
+        function repackageForApple(originalBlob) {
+            return new Promise((resolve) => {
+                // 这是一个简化的示例，实际可能需要服务器端转换
+                // 这里只是重新包装Blob，不改变编码
+                
+                // 对于苹果设备，尝试使用更兼容的MIME类型
+                let newType = 'audio/mp4';
+                const audio = new Audio();
+                
+                if (audio.canPlayType('audio/wav')) {
+                    newType = 'audio/wav';
+                } else if (audio.canPlayType('audio/mp4')) {
+                    newType = 'audio/mp4';
+                } else if (audio.canPlayType('audio/webm')) {
+                    newType = 'audio/webm';
+                }
+                
+                console.log('为苹果设备重新包装音频:', originalBlob.type, '->', newType);
+                
+                // 创建新的Blob，尝试不同的类型
+                const newBlob = new Blob([originalBlob], { type: newType });
+                resolve(newBlob);
+            });
+        }
+
 
         // ==================== 播放计时器函数 ====================
         function startPlaybackTimer() {
@@ -2107,53 +2305,36 @@
                 elements.uploadBtn.innerHTML = '<span>⏳ 上传中...</span>';
                 elements.uploadBtn.disabled = true;
                 
-                const fileName = `${AppState.selectedDate}_${AppState.currentSentence.id}.wav`;
+                // 确定文件扩展名
+                const mimeType = AppState.audioBlob.type || AppState.audioConfig.recordingMimeType;
+                let extension = 'webm';
+                
+                if (mimeType.includes('mp4')) extension = 'mp4';
+                else if (mimeType.includes('wav')) extension = 'wav';
+                else if (mimeType.includes('ogg')) extension = 'ogg';
+                
+                const fileName = `${AppState.selectedDate}_${AppState.currentSentence.id}.${extension}`;
                 const filePath = `recordings/${AppState.selectedDate}/${fileName}`;
                 
-                console.log('准备上传文件到Gitee:', filePath);
-                console.log('原始音频信息:', {
+                console.log('上传文件信息:', {
+                    fileName: fileName,
+                    mimeType: mimeType,
                     size: AppState.audioBlob.size,
-                    type: AppState.audioBlob.type,
-                    isAudio: AppState.audioBlob.type.startsWith('audio/')
+                    extension: extension
                 });
                 
-                // 重要：不要进行复杂的格式转换，直接使用原始blob
-                // 但是确保扩展名和Content-Type匹配
+                // 重要：直接使用原始blob，不进行转换
                 let finalBlob = AppState.audioBlob;
-                let contentType = 'audio/wav';
                 
-                // 如果原始格式不是wav，但也不是常见格式，可能需要转换
-                if (!finalBlob.type.includes('wav') && 
-                    !finalBlob.type.includes('webm') && 
-                    !finalBlob.type.includes('ogg')) {
-                    console.warn('音频格式不常见，尝试转换为WAV:', finalBlob.type);
-                    try {
-                        // 使用简化的WAV转换
-                        finalBlob = await convertToSimpleWav(finalBlob);
-                        console.log('转换为WAV成功，新大小:', finalBlob.size);
-                    } catch (conversionError) {
-                        console.warn('WAV转换失败，使用原始格式:', conversionError);
-                        // 保持原始格式，但修改扩展名
-                        contentType = finalBlob.type || 'audio/webm';
-                    }
-                } else {
-                    console.log('使用原始音频格式:', finalBlob.type);
-                    contentType = finalBlob.type;
+                // 只有Safari且格式特殊时才考虑简单转换
+                const isAppleDevice = navigator.userAgent.match(/iPad|iPhone|iPod|Macintosh/i);
+                if (isAppleDevice && !mimeType.includes('mp4') && !mimeType.includes('wav')) {
+                    console.log('苹果设备，尝试确保格式兼容性');
+                    // 可以在这里添加简单的格式转换，但保持简单
                 }
-                
-                console.log('上传前最终音频信息:', {
-                    size: finalBlob.size,
-                    type: contentType,
-                    blobType: finalBlob.type
-                });
                 
                 // 转换为base64
                 const base64Data = await blobToBase64(finalBlob);
-                console.log('Base64数据信息:', {
-                    totalLength: base64Data.length,
-                    prefix: base64Data.substring(0, 50)
-                });
-                
                 const pureBase64 = base64Data.split(',')[1];
                 
                 // 检查文件是否已存在
