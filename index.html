@@ -591,29 +591,51 @@
     <script>
         // ==================== 配置文件 ====================
         const AUDIO_CONFIG = {
-            // 强制使用MP4/AAC格式
-            getRecordingMimeType() {
-                // 优先尝试MP4格式
+            // 检测浏览器支持的格式
+            getSupportedMimeType() {
                 const types = [
-                    'audio/mp4;codecs=mp4a.40.2',
+                    'audio/webm;codecs=opus',
+                    'audio/webm',
                     'audio/mp4',
-                    'audio/aac'
+                    'audio/mp4;codecs=mp4a.40.2',
+                    'audio/ogg;codecs=opus',
+                    'audio/wav'
                 ];
                 
                 for (let type of types) {
                     if (MediaRecorder.isTypeSupported(type)) {
-                        console.log('使用录音格式:', type);
+                        console.log('支持格式:', type);
                         return type;
                     }
                 }
-                
-                // 如果都不支持，回退到默认
-                console.warn('MP4格式不支持，使用默认格式');
-                return 'audio/webm;codecs=opus';
+                return 'audio/webm'; // 默认回退
             },
             
-            // 固定播放格式为MP4
-            playableFormat: 'audio/mp4'
+            // 获取播放器支持的格式
+            getPlayableFormat(blob) {
+                const audio = new Audio();
+                const formats = [
+                    { type: 'audio/webm', test: 'audio/webm;codecs=opus' },
+                    { type: 'audio/mp4', test: 'audio/mp4;codecs=mp4a.40.2' },
+                    { type: 'audio/wav', test: 'audio/wav' },
+                    { type: 'audio/ogg', test: 'audio/ogg;codecs=opus' }
+                ];
+                
+                for (let format of formats) {
+                    if (audio.canPlayType(format.test)) {
+                        return format.type;
+                    }
+                }
+                return 'audio/webm';
+            }
+        };
+
+
+        // 注释掉GitHub配置，因为主要使用Gitee
+        const GITHUB_CONFIG = {
+            // 保留但不使用
+            REPOSITORY: 'wanzishare/ReadAloud',
+            TOKEN: ''
         };
 
         // 主要使用Gitee配置
@@ -625,7 +647,10 @@
             TOKEN: 'f62b136877bc9f4a2491f1ef30286857',
             
             // Gitee API基础URL
-            API_BASE: 'https://gitee.com/api/v5'
+            API_BASE: 'https://gitee.com/api/v5',
+            
+            // Gitee RAW文件基础URL（用于直接下载文件）
+            RAW_BASE: 'https://gitee.com'
         };
 
         // 示例句子数据
@@ -676,8 +701,8 @@
             isDownloading: false,
             lastDownloadTime: null,
             audioConfig: {
-                recordingMimeType: AUDIO_CONFIG.getRecordingMimeType(),
-                playableFormat: 'audio/mp4'  // 固定为MP4
+                recordingMimeType: AUDIO_CONFIG.getSupportedMimeType(),
+                playableFormat: 'audio/webm'
             }
         };
 
@@ -704,17 +729,27 @@
 
         // 检测苹果设备并调整配置
         function detectAppleDeviceAndAdjust() {
-            const isApple = /iPad|iPhone|iPod|Macintosh/i.test(navigator.userAgent);
             const isSafari = /^((?!chrome|android).)*safari/i.test(navigator.userAgent);
+            const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
+            const isMac = /Macintosh|MacIntel|MacPPC|Mac68K/.test(navigator.userAgent) && !window.MSStream;
             
-            if (isApple || isSafari) {
-                console.log('苹果/Safari设备，强制使用MP4格式');
+            console.log('设备检测:', { isSafari, isIOS, isMac });
+            
+            if (isIOS || isSafari) {
+                console.log('苹果/Safari设备检测到，启用兼容模式');
                 
-                // 苹果设备直接使用MP4
-                AppState.audioConfig.recordingMimeType = 'audio/mp4';
-                AppState.audioConfig.playableFormat = 'audio/mp4';
+                // Safari对WebM支持有限，优先使用MP4
+                const audio = new Audio();
+                if (audio.canPlayType('audio/mp4;codecs=mp4a.40.2')) {
+                    AppState.audioConfig.recordingMimeType = 'audio/mp4';
+                    AppState.audioConfig.playableFormat = 'audio/mp4';
+                } else if (audio.canPlayType('audio/wav')) {
+                    AppState.audioConfig.recordingMimeType = 'audio/wav';
+                    AppState.audioConfig.playableFormat = 'audio/wav';
+                }
                 
-                showStatus('苹果设备，已启用MP4格式', 'info');
+                // 显示提示
+                showStatus('检测到苹果设备，已启用兼容模式', 'info');
                 return true;
             }
             return false;
@@ -1034,44 +1069,61 @@
             localStorage.setItem(key, JSON.stringify(AppState.sentences));
         }
 
-        
+        // 修复后的文件检查函数，支持多种格式
         async function checkFileExistsOnServer(sentenceId) {    
-            // 只使用MP4格式
-            const fileName = `${AppState.selectedDate}_${sentenceId}.mp4`;
-            const filePath = `recordings/${AppState.selectedDate}/${fileName}`;
+            // 支持的音频格式列表
+            const supportedFormats = ['webm', 'mp4', 'wav', 'ogg', 'm4a'];
+            const fileNameBase = `${AppState.selectedDate}_${sentenceId}`;
             
-            console.log(`检查Gitee文件是否存在: ${filePath}`);
+            console.log(`检查Gitee文件是否存在，基本名称: ${fileNameBase}`);
             
-            try {
-                const response = await fetch(
-                    `${GITEE_CONFIG.API_BASE}/repos/${GITEE_CONFIG.REPOSITORY}/contents/${filePath}?access_token=${GITEE_CONFIG.TOKEN}`,
-                    {
-                        method: 'GET',
-                        mode: 'cors',
-                        headers: {
-                            'Accept': 'application/json'
-                        },
-                        signal: AbortSignal.timeout(3000)
-                    }
-                );
+            // 按顺序检查各种格式
+            for (const format of supportedFormats) {
+                const fileName = `${fileNameBase}.${format}`;
+                const filePath = `recordings/${AppState.selectedDate}/${fileName}`;
                 
-                if (response.status === 200) {
-                    const responseData = await response.json();
+                console.log(`尝试检查格式: ${format}, 路径: ${filePath}`);
+                
+                try {
+                    const response = await fetch(
+                        `${GITEE_CONFIG.API_BASE}/repos/${GITEE_CONFIG.REPOSITORY}/contents/${filePath}?access_token=${GITEE_CONFIG.TOKEN}`,
+                        {
+                            method: 'GET',
+                            mode: 'cors',
+                            headers: {
+                                'Accept': 'application/json'
+                            },
+                            signal: AbortSignal.timeout(3000) // 缩短超时时间
+                        }
+                    );
                     
-                    // 文件存在
-                    if (responseData && typeof responseData === 'object' && responseData.sha) {
-                        console.log(`✅ MP4文件存在: ${filePath}`);
-                        return true;
+                    if (response.status === 200) {
+                        const responseData = await response.json();
+                        
+                        // 如果返回的是空数组 []，表示文件不存在
+                        if (Array.isArray(responseData) && responseData.length === 0) {
+                            console.log(`❌ 文件不存在（返回空数组）: ${filePath}`);
+                            continue; // 继续检查下一个格式
+                        }
+                        
+                        // 如果返回的是对象且有sha字段，表示文件存在
+                        if (responseData && typeof responseData === 'object' && responseData.sha) {
+                            console.log(`✅ 文件存在（格式: ${format}）: ${filePath}`);
+                            return true;
+                        }
+                    } else if (response.status === 404) {
+                        console.log(`❌ 文件不存在（404）: ${filePath}`);
+                        continue; // 继续检查下一个格式
                     }
+                } catch (error) {
+                    console.log(`检查格式 ${format} 失败:`, error.message);
+                    continue; // 继续检查下一个格式
                 }
-                
-                console.log(`❌ MP4文件不存在: ${filePath}`);
-                return false;
-                
-            } catch (error) {
-                console.log(`检查文件失败:`, error.message);
-                return false;
             }
+            
+            // 如果所有格式都检查完毕都没找到
+            console.log(`❌ 所有格式检查完毕，文件 ${fileNameBase} 不存在`);
+            return false;
         }
 
         async function checkServerFilesInBackground() {
@@ -1256,50 +1308,74 @@
 
         // 修复后的下载函数，只使用Gitee
         async function downloadAudioFromGitee(sentenceId) {
-            console.log('从Gitee下载MP4音频:', sentenceId);
+            console.log('从Gitee下载音频:', sentenceId);
             
-            const fileName = `${AppState.selectedDate}_${sentenceId}.mp4`;
-            const filePath = `recordings/${AppState.selectedDate}/${fileName}`;
+            // 支持的音频格式列表
+            const supportedFormats = ['webm', 'mp4', 'wav', 'ogg'];
+            const fileNameBase = `${AppState.selectedDate}_${sentenceId}`;
             
-            try {
-                const apiUrl = `${GITEE_CONFIG.API_BASE}/repos/${GITEE_CONFIG.REPOSITORY}/contents/${filePath}?access_token=${GITEE_CONFIG.TOKEN}`;
+            // 按顺序尝试下载各种格式
+            for (const format of supportedFormats) {
+                const fileName = `${fileNameBase}.${format}`;
+                const filePath = `recordings/${AppState.selectedDate}/${fileName}`;
                 
-                const response = await fetch(apiUrl, {
-                    method: 'GET',
-                    mode: 'cors',
-                    headers: {
-                        'Accept': 'application/json'
-                    },
-                    signal: AbortSignal.timeout(5000)
-                });
+                console.log(`尝试下载格式: ${format}`);
                 
-                if (!response.ok) {
-                    console.log('MP4文件不存在');
-                    return null;
-                }
-                
-                const fileData = await response.json();
-                
-                if (fileData.content && fileData.encoding === 'base64') {
-                    const binaryString = atob(fileData.content);
-                    const bytes = new Uint8Array(binaryString.length);
-                    for (let i = 0; i < binaryString.length; i++) {
-                        bytes[i] = binaryString.charCodeAt(i);
+                try {
+                    const apiUrl = `${GITEE_CONFIG.API_BASE}/repos/${GITEE_CONFIG.REPOSITORY}/contents/${filePath}?access_token=${GITEE_CONFIG.TOKEN}`;
+                    
+                    console.log('尝试下载:', apiUrl);
+                    
+                    const response = await fetch(apiUrl, {
+                        method: 'GET',
+                        mode: 'cors',
+                        cache: 'no-store',
+                        headers: {
+                            'Accept': 'application/json'
+                        },
+                        signal: AbortSignal.timeout(5000)
+                    });
+                    
+                    if (!response.ok) {
+                        console.log(`格式 ${format} 不存在，状态码: ${response.status}`);
+                        continue; // 继续尝试下一个格式
                     }
                     
-                    // MP4格式
-                    const audioBlob = new Blob([bytes], { type: 'audio/mp4' });
-                    console.log('✅ MP4文件下载成功，大小:', audioBlob.size, 'bytes');
+                    const fileData = await response.json();
                     
-                    return audioBlob;
+                    // Gitee返回的数据结构
+                    if (fileData.content && fileData.encoding === 'base64') {
+                        // 解码base64
+                        const binaryString = atob(fileData.content);
+                        const bytes = new Uint8Array(binaryString.length);
+                        for (let i = 0; i < binaryString.length; i++) {
+                            bytes[i] = binaryString.charCodeAt(i);
+                        }
+                        
+                        // 根据扩展名确定MIME类型
+                        let mimeType;
+                        switch(format) {
+                            case 'wav': mimeType = 'audio/wav'; break;
+                            case 'mp4': mimeType = 'audio/mp4'; break;
+                            case 'ogg': mimeType = 'audio/ogg'; break;
+                            case 'webm': 
+                            default: mimeType = 'audio/webm'; break;
+                        }
+                        
+                        const audioBlob = new Blob([bytes], { type: mimeType });
+                        console.log(`✅ 从Gitee下载成功，格式: ${format}, 大小: ${audioBlob.size} bytes`);
+                        
+                        return audioBlob;
+                    }
+                    
+                } catch (error) {
+                    console.log(`下载格式 ${format} 失败:`, error.message);
+                    continue; // 继续尝试下一个格式
                 }
-                
-                return null;
-                
-            } catch (error) {
-                console.error('下载MP4文件失败:', error);
-                return null;
             }
+            
+            console.warn('❌ 无法从Gitee下载音频：所有格式都尝试失败');
+            return null;
         }
 
         // 音频缓存函数
@@ -1688,35 +1764,98 @@
         // ==================== 录音功能 ====================
         async function startRecording() {
             try {
-                console.log('开始录音，使用格式:', AppState.audioConfig.recordingMimeType);
+                console.log('开始录音...');
+                console.log('使用的音频格式:', AppState.audioConfig.recordingMimeType);
                 
-                // 苹果设备优化配置
+                // 停止正在播放的录音
+                if (AppState.isPlaying) {
+                    console.log('检测到正在播放录音，先停止播放');
+                    stopPlayback();
+                }
+                
+                // 重置状态
+                AppState.audioChunks = [];
+                AppState.audioBlob = null;
+                AppState.recordingTime = 0;
+
+                // 显示初始时间
+                elements.timer.textContent = '00:00';
+                elements.progressFill.style.width = '0%';
+                
+                // 苹果设备特殊配置
                 const audioConstraints = {
                     echoCancellation: true,
                     noiseSuppression: true,
-                    channelCount: 1,
-                    sampleRate: 44100
+                    channelCount: 1
                 };
                 
+                // 苹果设备需要指定采样率
+                if (navigator.userAgent.match(/iPad|iPhone|iPod/i)) {
+                    audioConstraints.sampleRate = 48000;
+                    console.log('iOS设备，设置采样率48000Hz');
+                } else {
+                    audioConstraints.sampleRate = 44100;
+                }
+                
+                // 请求麦克风权限
                 const stream = await navigator.mediaDevices.getUserMedia({
                     audio: audioConstraints
                 });
                 
-                // 强制使用MP4格式
+                // 创建录音器，使用检测到的格式
                 let mimeType = AppState.audioConfig.recordingMimeType;
                 
-                // 如果浏览器不支持MP4，尝试其他格式
-                if (!MediaRecorder.isTypeSupported(mimeType)) {
-                    console.warn('MP4不支持，尝试WebM');
-                    mimeType = 'audio/webm;codecs=opus';
+                // Safari兼容性处理
+                if (MediaRecorder.isTypeSupported(mimeType)) {
+                    AppState.recorder = new MediaRecorder(stream, { mimeType });
+                } else {
+                    console.warn('首选格式不支持，使用默认格式');
+                    AppState.recorder = new MediaRecorder(stream);
                 }
                 
-                AppState.recorder = new MediaRecorder(stream, { mimeType });
+                // 收集音频数据
+                AppState.recorder.ondataavailable = (event) => {
+                    if (event.data && event.data.size > 0) {
+                        AppState.audioChunks.push(event.data);
+                        console.log('收到音频数据块:', event.data.size, 'bytes');
+                    }
+                };
                 
-                // ... 其他代码保持不变 ...
+                // 录音停止时的处理
+                AppState.recorder.onstop = handleRecordingStop;
+                
+                // 开始录音
+                AppState.recorder.start(100); // 每100ms收集一次数据
+                AppState.isRecording = true;
+                
+                // 更新按钮状态
+                elements.recordBtn.disabled = true;
+                elements.stopBtn.disabled = false;
+                elements.uploadBtn.disabled = true;
+                elements.playBtn.disabled = true;
+                
+                // 开始计时
+                startTimer();
+                
+                showStatus('正在录音...', 'info');
+                
             } catch (error) {
                 console.error('录音错误:', error);
-                showStatus('录音失败: ' + error.message, 'error');
+                
+                // 苹果设备特定错误处理
+                if (navigator.userAgent.match(/iPad|iPhone|iPod/i)) {
+                    if (error.name === 'NotFoundError' || error.name === 'DevicesNotFoundError') {
+                        showStatus('未找到麦克风设备', 'error');
+                    } else if (error.name === 'NotAllowedError' || error.name === 'PermissionDeniedError') {
+                        showStatus('麦克风访问被拒绝，请检查系统设置', 'error');
+                    } else if (error.name === 'NotSupportedError') {
+                        showStatus('当前浏览器不支持录音功能', 'error');
+                    } else {
+                        showStatus('录音失败：' + error.message, 'error');
+                    }
+                } else {
+                    showStatus('无法访问麦克风：' + error.message, 'error');
+                }
             }
         }
 
@@ -2178,27 +2317,56 @@
                 return;
             }
             
+            if (!AppState.currentSentence) {
+                showStatus('请选择一个句子！', 'error');
+                return;
+            }
+            
+            if (!GITEE_CONFIG.REPOSITORY || !GITEE_CONFIG.TOKEN) {
+                showStatus('Gitee配置不正确', 'error');
+                return;
+            }
+            
             try {
                 elements.uploadBtn.innerHTML = '<span>⏳ 上传中...</span>';
                 elements.uploadBtn.disabled = true;
                 
-                // 强制使用MP4格式
-                const fileName = `${AppState.selectedDate}_${AppState.currentSentence.id}.mp4`;
+                // 根据音频Blob的实际MIME类型确定文件扩展名
+                const mimeType = AppState.audioBlob.type || 'audio/webm';
+                let extension = 'webm'; // 默认
+                
+                if (mimeType.includes('mp4') || mimeType.includes('m4a')) {
+                    extension = 'mp4';
+                } else if (mimeType.includes('wav')) {
+                    extension = 'wav';
+                } else if (mimeType.includes('ogg')) {
+                    extension = 'ogg';
+                } else if (mimeType.includes('webm')) {
+                    extension = 'webm';
+                }
+                
+                // 统一使用这种命名格式：日期_句子ID.扩展名
+                const fileName = `${AppState.selectedDate}_${AppState.currentSentence.id}.${extension}`;
                 const filePath = `recordings/${AppState.selectedDate}/${fileName}`;
                 
-                console.log('上传MP4文件:', fileName);
+                console.log('上传文件信息:', {
+                    fileName: fileName,
+                    mimeType: mimeType,
+                    extension: extension,
+                    size: AppState.audioBlob.size
+                });
                 
                 // 转换为base64
                 const base64Data = await blobToBase64(AppState.audioBlob);
                 const pureBase64 = base64Data.split(',')[1];
                 
-                // 检查文件是否已存在
-                const existingSHA = await getGiteeFileSHA(filePath);
+                // 检查文件是否已存在（支持多种格式）
+                const existingSHA = await getGiteeFileSHAForFormat(filePath);
                 
                 const requestData = {
                     access_token: GITEE_CONFIG.TOKEN,
                     content: pureBase64,
-                    message: `录音上传: ${AppState.currentSentence.id} - ${AppState.selectedDate}`,
+                    message: `录音上传: ${AppState.currentSentence.id} - ${AppState.selectedDate} (格式: ${extension})`,
                     committer: {
                         name: 'Audio Recording App',
                         email: 'noreply@gitee.com'
@@ -2207,8 +2375,10 @@
                 
                 if (existingSHA) {
                     requestData.sha = existingSHA;
+                    console.log('文件已存在，将更新现有文件');
                 }
                 
+                console.log('发送上传请求...');
                 const response = await fetch(
                     `${GITEE_CONFIG.API_BASE}/repos/${GITEE_CONFIG.REPOSITORY}/contents/${filePath}`,
                     {
@@ -2221,28 +2391,43 @@
                     }
                 );
                 
-                if (response.ok) {
-                    showStatus('✅ MP4文件上传成功！', 'success');
+                console.log('上传响应状态:', response.status);
+                
+                if (!response.ok) {
+                    const errorText = await response.text();
+                    console.error('上传失败响应:', errorText);
+                    throw new Error(`Gitee API返回错误: ${response.status}`);
+                }
+                
+                const result = await response.json();
+                console.log('上传成功响应:', result);
+                
+                if (result.commit && result.commit.sha) {
+                    console.log('上传到Gitee成功');
+                    showStatus(`✅ 上传成功！格式: ${extension}`, 'success');
                     
                     // 标记为已上传
                     AppState.currentSentence.hasUploaded = true;
                     AppState.currentSentence.uploadedAt = new Date().toISOString();
                     
-                    // 更新UI
+                    // 更新按钮状态
                     elements.uploadBtn.textContent = '📤 重新上传';
                     elements.uploadBtn.disabled = false;
                     
+                    // 保存状态并更新UI
                     saveSentencesForSelectedDate();
                     updateSentenceItemInUI(AppState.currentSentence);
                     updateStats();
                     
                 } else {
-                    throw new Error(`上传失败: ${response.status}`);
+                    throw new Error('Gitee返回数据格式错误');
                 }
                 
             } catch (error) {
-                console.error('上传失败:', error);
-                showStatus('❌ 上传失败', 'error');
+                console.error('上传到Gitee错误:', error);
+                showStatus(`❌ 上传失败：${error.message}`, 'error');
+                
+                // 上传失败，恢复按钮状态
                 elements.uploadBtn.innerHTML = '<span>📤 上传到服务器</span>';
                 elements.uploadBtn.disabled = false;
             }
