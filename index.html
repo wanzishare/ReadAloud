@@ -1569,13 +1569,13 @@
             
             // 要保留的缓存前缀（重要数据）
             const keepPrefixes = [
-                'celebrated_',      // 庆祝标记
-                'last_checked_',    // 最后检查时间
-                'upload_status_'    // 上传状态（重要！）
             ];
             
             // 要清理的缓存前缀（临时数据）
             const clearPrefixes = [
+                'celebrated_',      // 庆祝标记
+                'last_checked_',    // 最后检查时间
+                'upload_status_',    // 上传状态（重要！）
                 'audio_',           // 音频文件（每次重新加载）
                 'sentences_',       // 句子数据（从服务器重新获取）
                 'excel_cache_',     // Excel缓存（重新获取最新数据）
