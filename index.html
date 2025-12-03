@@ -17,6 +17,150 @@
         </div>
     </div>
     <style>
+        /* 庆祝消息样式 */
+        #celebrationMessage {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.85);
+            z-index: 9999;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            animation: fadeIn 0.5s ease;
+        }
+
+        .celebration-content {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            padding: 40px;
+            border-radius: 20px;
+            text-align: center;
+            max-width: 600px;
+            width: 90%;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.5);
+            animation: pulse 2s infinite, bounceIn 1s ease;
+            border: 3px solid gold;
+        }
+
+        .celebration-title {
+            font-size: 3em;
+            color: white;
+            margin: 20px 0;
+            text-shadow: 0 0 10px rgba(255, 215, 0, 0.5);
+            animation: glow 1.5s infinite alternate;
+        }
+
+        .celebration-subtitle {
+            font-size: 1.5em;
+            color: #FFD700;
+            margin-bottom: 30px;
+        }
+
+        .stars {
+            font-size: 2em;
+            color: gold;
+            animation: spin 3s linear infinite;
+        }
+
+        .celebration-info {
+            background: rgba(255, 255, 255, 0.1);
+            padding: 20px;
+            border-radius: 10px;
+            margin: 20px 0;
+            text-align: left;
+        }
+
+        .celebration-info p {
+            color: white;
+            margin: 10px 0;
+            font-size: 1.1em;
+        }
+
+        .btn-celebration-close {
+            background: linear-gradient(135deg, #FFD700 0%, #FFA500 100%);
+            color: #333;
+            border: none;
+            padding: 12px 30px;
+            border-radius: 25px;
+            font-size: 16px;
+            cursor: pointer;
+            margin-top: 20px;
+            font-weight: bold;
+            transition: all 0.3s;
+        }
+
+        .btn-celebration-close:hover {
+            transform: scale(1.05);
+            box-shadow: 0 0 20px gold;
+        }
+
+        /* 动画效果 */
+        @keyframes glow {
+            from {
+                text-shadow: 0 0 10px rgba(255, 215, 0, 0.5);
+            }
+            to {
+                text-shadow: 0 0 20px rgba(255, 215, 0, 1),
+                            0 0 30px rgba(255, 215, 0, 0.7),
+                            0 0 40px rgba(255, 215, 0, 0.5);
+            }
+        }
+
+        @keyframes bounceIn {
+            0% {
+                transform: scale(0.3);
+                opacity: 0;
+            }
+            50% {
+                transform: scale(1.05);
+            }
+            70% {
+                transform: scale(0.9);
+            }
+            100% {
+                transform: scale(1);
+                opacity: 1;
+            }
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+
+        /* 烟花粒子样式 */
+        .firework-particle {
+            position: absolute;
+            border-radius: 50%;
+            pointer-events: none;
+        }
+
+        /* 响应式调整 */
+        @media (max-width: 768px) {
+            .celebration-content {
+                padding: 20px;
+                width: 95%;
+            }
+            
+            .celebration-title {
+                font-size: 2em;
+            }
+            
+            .celebration-subtitle {
+                font-size: 1.2em;
+            }
+            
+            .stars {
+                font-size: 1.5em;
+            }
+        }
         * {
             margin: 0;
             padding: 0;
@@ -522,7 +666,7 @@
             <div class="sentence-list">
                 <div class="sentence-list-header">
                     <h3>📋 句子列表</h3>
-                    <span id="progressText">0/0 已完成</span>
+                    <span id="progressText">0/0 已上传</span>
                 </div>
                 <div id="sentencesContainer">
                     <!-- 句子项将通过JS动态生成 -->
@@ -572,10 +716,6 @@
                     <div class="stat-item">
                         <div class="stat-number" id="totalSentences">0</div>
                         <div class="stat-label">总句子数</div>
-                    </div>
-                    <div class="stat-item">
-                        <div class="stat-number" id="completedSentences">0</div>
-                        <div class="stat-label">已完成</div>
                     </div>
                     <div class="stat-item">
                         <div class="stat-number" id="uploadedSentences">0</div>
@@ -754,7 +894,6 @@
             progressFill: document.getElementById('progressFill'),
             progressText: document.getElementById('progressText'),
             totalSentences: document.getElementById('totalSentences'),
-            completedSentences: document.getElementById('completedSentences'),
             uploadedSentences: document.getElementById('uploadedSentences'),
             playbackIndicator: document.getElementById('playbackIndicator'),
             statusMessage: document.getElementById('statusMessage'),
@@ -1318,13 +1457,39 @@
             return `${year}-${month}-${day}`;
         }
 
+        // 禁用所有功能按钮
+        function disableAllFeatureButtons() {
+            console.log('禁用所有功能按钮');
+            
+            elements.recordBtn.disabled = true;
+            elements.stopBtn.disabled = true;
+            elements.uploadBtn.disabled = true;
+            elements.playBtn.disabled = true;
+            
+            elements.recordBtn.innerHTML = '<span>🎤 开始录音</span>';
+            elements.stopBtn.innerHTML = '<span>⏹️ 停止录音</span>';
+            elements.uploadBtn.innerHTML = '<span>📤 上传到服务器</span>';
+            elements.playBtn.innerHTML = '<span>▶️ 播放录音</span>';
+        }
+
+        // 启用录音按钮（基础功能）
+        function enableBasicButtons() {
+            console.log('启用基础功能按钮');
+            
+            // 录音按钮始终可用（前提是有选中句子）
+            elements.recordBtn.disabled = false;
+        }
+
         // 修改 initApp 函数中的日期初始化逻辑：
-        function initApp() {
+        async function initApp() {
             console.log('初始化应用...');
+            
+            // 初始时禁用所有功能按钮
+            disableAllFeatureButtons();
             
             // 1. 清理过期缓存
             cleanupExpiredCache();
-            StateCache.cleanupExpiredCache(); // 清理上传状态缓存
+            StateCache.cleanupExpiredCache();
             
             // 2. 检测苹果设备并调整配置
             detectAppleDeviceAndAdjust();
@@ -1341,13 +1506,14 @@
             // 4. 初始化日期
             const now = new Date();
             AppState.todayDate = getLocalDateString(now);
-            AppState.selectedDate = AppState.todayDate; // 默认选择今天
+            AppState.selectedDate = AppState.todayDate;
             
             // 5. 验证和修复日期
             validateAndFixDates();
             
             // 6. 从Gitee加载Excel数据
-            loadExcelData().then(async (excelData) => {
+            try {
+                const excelData = await loadExcelData();
                 if (excelData) {
                     AppState.excelData = excelData;
                     
@@ -1361,27 +1527,38 @@
                     // 9. 加载当前日期的句子数据
                     await smartLoadSentences();
                     
-                    // 10. 设置事件监听器
+                    // 10. 设置事件监听器（必须在数据加载后）
                     setupEventListeners();
                     
-                    // 11. 初始化按钮状态
-                    initializeButtonStates();
+                    // 11. 如果有句子，自动选择第一个
+                    if (AppState.sentences.length > 0) {
+                        console.log('初始化完成，自动选择第一个句子');
+                        // 延迟选择，确保UI完全渲染
+                        setTimeout(() => {
+                            selectSentence(AppState.sentences[0]);
+                        }, 300);
+                    } else {
+                        console.log('初始化完成，没有句子数据');
+                        // 显示提示信息
+                        elements.currentSentenceText.innerHTML = `
+                            <div style="text-align: center; color: #666;">
+                                <p>📝 当前日期没有句子数据</p>
+                                <p style="font-size: 14px; margin-top: 10px;">
+                                    请选择其他日期或检查Excel文件
+                                </p>
+                            </div>
+                        `;
+                    }
                     
-                    // showStatus('系统已就绪，请从左侧选择句子开始', 'info');
+                    console.log('应用初始化完成');
                     
-                    // 12. 在后台检查服务器状态（如果需要）
-                    setTimeout(() => {
-                        if (shouldCheckServerStatus()) {
-                            checkServerFilesInBackground();
-                        }
-                    }, 2000); // 延迟2秒，避免影响初始加载
                 } else {
-                    showStatus('无法加载Excel数据', 'error');
+                    showStatus('无法加载Excel数据，请检查网络连接', 'error');
                 }
-            }).catch(error => {
+            } catch (error) {
                 console.error('初始化失败:', error);
-                showStatus('系统初始化失败', 'error');
-            });
+                showStatus('系统初始化失败: ' + error.message, 'error');
+            }
         }
 
         // 同时，修改 validateAndFixDates 函数：
@@ -1730,6 +1907,10 @@
             dateSelect.addEventListener('change', async (e) => {
                 const newDate = e.target.value;
                 console.log('日期选择器变化，新日期:', newDate);
+    
+                // 清理新日期的庆祝标记（让新日期可以重新庆祝）
+                const newCelebrationKey = `celebrated_${newDate}`;
+                localStorage.removeItem(newCelebrationKey);
                 
                 if (newDate === AppState.selectedDate) {
                     console.log('日期未变化，跳过');
@@ -2560,7 +2741,19 @@
         function selectSentence(sentence) {
             console.log('选择句子:', sentence?.id);
             
-            if (!sentence) return;
+            if (!sentence) {
+                console.error('尝试选择null或undefined的句子');
+                showStatus('请从左侧选择一个有效的句子', 'error');
+                return;
+            }
+            
+            // 验证句子是否存在于当前句子列表中
+            const sentenceExists = AppState.sentences.some(s => s.id === sentence.id);
+            if (!sentenceExists) {
+                console.error('句子不存在于当前列表中:', sentence.id);
+                showStatus('选择的句子无效，请重新选择', 'error');
+                return;
+            }
             
             // 如果选择的是同一个句子，不要重复操作
             if (AppState.currentSentence && AppState.currentSentence.id === sentence.id) {
@@ -2581,8 +2774,6 @@
             AppState.audioBlob = null;
             
             // 更新UI显示
-            // elements.currentSentenceId.textContent = sentence.id;
-            // 显示选中的句子的下标（从1开始）
             const idx = AppState.sentences.findIndex(s => s.id === sentence.id);
             if (idx >= 0) {
                 elements.currentSentenceId.textContent = (idx + 1).toString().padStart(2, '0');
@@ -2615,7 +2806,13 @@
 
         // 添加按钮状态更新函数
         function updateButtonStatesForSelectedSentence(sentence) {
-            console.log('更新按钮状态，句子:', sentence.id);
+            console.log('更新按钮状态，句子:', sentence?.id);
+            
+            if (!sentence) {
+                console.error('updateButtonStatesForSelectedSentence: 句子为null');
+                disableAllFeatureButtons();
+                return;
+            }
             
             // 录音按钮始终可用（开始新的录音）
             elements.recordBtn.disabled = false;
@@ -2883,6 +3080,8 @@
                     // 检查是否是有效的base64音频数据
                     if (!audioData.startsWith('data:audio/')) {
                         console.error('本地音频数据格式不正确:', audioData.substring(0, 50));
+                        // 清理无效数据
+                        localStorage.removeItem(audioKey);
                         return;
                     }
                     
@@ -2961,30 +3160,25 @@
                 }
                 
                 console.log('开始录音，句子:', AppState.currentSentence.id);
-                console.log('使用的音频格式:', AppState.audioConfig.recordingMimeType);
+                
+                // 重置之前的状态
+                resetRecordingState();
+                
                 // 停止正在播放的录音
                 if (AppState.isPlaying) {
                     console.log('检测到正在播放录音，先停止播放');
                     stopPlayback();
                 }
                 
-                // 重置状态
-                AppState.audioChunks = [];
-                AppState.audioBlob = null;
-                AppState.recordingTime = 0;
-
-                // 显示初始时间
-                elements.timer.textContent = '00:00';
-                elements.progressFill.style.width = '0%';
-                
                 // 苹果设备特殊配置
                 const audioConstraints = {
                     echoCancellation: true,
                     noiseSuppression: true,
-                    channelCount: 1
+                    channelCount: 1,
+                    autoGainControl: true
                 };
                 
-                // 苹果设备需要指定采样率
+                // 根据设备调整采样率
                 if (navigator.userAgent.match(/iPad|iPhone|iPod/i)) {
                     audioConstraints.sampleRate = 48000;
                     console.log('iOS设备，设置采样率48000Hz');
@@ -2993,34 +3187,71 @@
                 }
                 
                 // 请求麦克风权限
+                console.log('请求麦克风权限...');
                 const stream = await navigator.mediaDevices.getUserMedia({
                     audio: audioConstraints
                 });
                 
-                // 创建录音器，使用检测到的格式
+                console.log('麦克风权限已获得，创建录音器...');
+                
+                // 选择最适合的MIME类型
                 let mimeType = AppState.audioConfig.recordingMimeType;
                 
-                // Safari兼容性处理
-                if (MediaRecorder.isTypeSupported(mimeType)) {
-                    AppState.recorder = new MediaRecorder(stream, { mimeType });
-                } else {
-                    console.warn('首选格式不支持，使用默认格式');
-                    AppState.recorder = new MediaRecorder(stream);
+                // 验证格式是否支持
+                if (!MediaRecorder.isTypeSupported(mimeType)) {
+                    console.warn(`首选格式 ${mimeType} 不支持，尝试其他格式`);
+                    
+                    // 尝试其他格式
+                    const formats = [
+                        'audio/webm;codecs=opus',
+                        'audio/webm',
+                        'audio/mp4;codecs=mp4a.40.2',
+                        'audio/wav',
+                        'audio/ogg;codecs=opus'
+                    ];
+                    
+                    for (const format of formats) {
+                        if (MediaRecorder.isTypeSupported(format)) {
+                            mimeType = format;
+                            console.log(`使用备用格式: ${format}`);
+                            break;
+                        }
+                    }
                 }
+                
+                // 创建录音器
+                console.log(`使用录音格式: ${mimeType}`);
+                AppState.recorder = new MediaRecorder(stream, { 
+                    mimeType: mimeType,
+                    audioBitsPerSecond: 128000 // 128kbps，保证质量
+                });
+                
+                // 重置数据块
+                AppState.audioChunks = [];
                 
                 // 收集音频数据
                 AppState.recorder.ondataavailable = (event) => {
                     if (event.data && event.data.size > 0) {
                         AppState.audioChunks.push(event.data);
                         console.log('收到音频数据块:', event.data.size, 'bytes');
+                    } else {
+                        console.warn('收到空的数据块');
                     }
                 };
                 
                 // 录音停止时的处理
                 AppState.recorder.onstop = handleRecordingStop;
                 
-                // 开始录音
-                AppState.recorder.start(100); // 每100ms收集一次数据
+                // 录音错误处理
+                AppState.recorder.onerror = (event) => {
+                    console.error('录音器发生错误:', event.error);
+                    showStatus('录音设备错误，请重试', 'error');
+                    resetRecordingState();
+                };
+                
+                // 开始录音（增加时间间隔，减少数据块数量）
+                AppState.recorder.start(500); // 改为500ms，减少数据块数量
+                
                 AppState.isRecording = true;
                 
                 // 更新按钮状态
@@ -3036,23 +3267,21 @@
                 
             } catch (error) {
                 console.error('录音错误:', error);
+                resetRecordingState();
                 
-                // 苹果设备特定错误处理
-                if (navigator.userAgent.match(/iPad|iPhone|iPod/i)) {
-                    if (error.name === 'NotFoundError' || error.name === 'DevicesNotFoundError') {
-                        showStatus('未找到麦克风设备', 'error');
-                    } else if (error.name === 'NotAllowedError' || error.name === 'PermissionDeniedError') {
-                        showStatus('麦克风访问被拒绝，请检查系统设置', 'error');
-                    } else if (error.name === 'NotSupportedError') {
-                        showStatus('当前浏览器不支持录音功能', 'error');
-                    } else {
-                        showStatus('录音失败：' + error.message, 'error');
-                    }
+                // 错误处理
+                if (error.name === 'NotFoundError' || error.name === 'DevicesNotFoundError') {
+                    showStatus('未找到麦克风设备', 'error');
+                } else if (error.name === 'NotAllowedError' || error.name === 'PermissionDeniedError') {
+                    showStatus('麦克风访问被拒绝，请检查系统设置', 'error');
+                } else if (error.name === 'NotSupportedError') {
+                    showStatus('当前浏览器不支持录音功能', 'error');
                 } else {
-                    showStatus('无法访问麦克风：' + error.message, 'error');
+                    showStatus('录音失败：' + error.message, 'error');
                 }
             }
         }
+
 
         // 专门处理录音停止的函数
         function handleRecordingStop() {
@@ -3092,7 +3321,8 @@
                     
                     // 延迟一点开始上传，确保本地保存完成
                     setTimeout(() => {
-                        uploadToGitee();
+                        // 这里修改：传递回调函数，上传成功后检查庆祝条件
+                        uploadToGitee(true); // true表示是自动上传
                     }, 800);
                 } else {
                     console.log('已有录音或已上传过，等待手动上传');
@@ -3116,6 +3346,53 @@
             AppState.isRecording = false;
         }
 
+        function resetRecordingState() {
+            console.log('重置录音状态');
+            
+            if (AppState.recorder && AppState.recorder.state !== 'inactive') {
+                try {
+                    AppState.recorder.stop();
+                } catch (e) {
+                    console.warn('停止录音器时出错:', e);
+                }
+            }
+            
+            if (AppState.recorder && AppState.recorder.stream) {
+                AppState.recorder.stream.getTracks().forEach(track => {
+                    try {
+                        track.stop();
+                    } catch (e) {
+                        console.warn('停止音轨时出错:', e);
+                    }
+                });
+            }
+            
+            // 清理音频数据
+            AppState.audioChunks = [];
+            AppState.audioBlob = null;
+            AppState.recorder = null;
+            AppState.isRecording = false;
+            
+            // 重置计时器
+            if (AppState.timerInterval) {
+                clearInterval(AppState.timerInterval);
+                AppState.timerInterval = null;
+            }
+            
+            AppState.recordingTime = 0;
+            elements.timer.textContent = '00:00';
+            elements.progressFill.style.width = '0%';
+            
+            // 重置按钮状态
+            elements.recordBtn.disabled = false;
+            elements.stopBtn.disabled = true;
+            
+            if (AppState.currentSentence) {
+                elements.playBtn.disabled = false;
+                elements.uploadBtn.disabled = false;
+            }
+        }
+
         function stopRecording() {
             if (AppState.recorder && AppState.isRecording) {
                 console.log('停止录音...');
@@ -3130,13 +3407,23 @@
 
         // 检查是否应该自动上传录音
         function shouldAutoUploadAfterRecording(sentence) {
-            if (!sentence) {
-                console.log('shouldAutoUploadAfterRecording: 句子对象为空');
+            if (!sentence) return false;
+            
+            // 检查是否有有效的音频数据
+            if (!AppState.audioBlob || AppState.audioBlob.size === 0) {
+                console.log('shouldAutoUploadAfterRecording: 音频数据为空');
                 return false;
             }
             
-            if (!AppState.audioBlob || AppState.audioBlob.size === 0) {
-                console.log('shouldAutoUploadAfterRecording: 音频数据为空');
+            // 检查录音时长（至少3秒，避免误录）
+            if (AppState.recordingTime < 3.0) {
+                console.log(`录音时长太短: ${AppState.recordingTime}秒`);
+                return false;
+            }
+            
+            // 检查音频文件大小（至少10KB）
+            if (AppState.audioBlob.size < 10240) {
+                console.log(`音频文件太小: ${AppState.audioBlob.size}字节`);
                 return false;
             }
             
@@ -3149,15 +3436,17 @@
             
             console.log(`自动上传判断:`);
             console.log(`  - 句子ID: ${sentence.id}`);
-            console.log(`  - 日期: ${AppState.selectedDate}`);
+            console.log(`  - 录音时长: ${AppState.recordingTime}秒`);
+            console.log(`  - 音频大小: ${AppState.audioBlob.size}字节`);
             console.log(`  - 本地录音存在: ${!!hasLocalRecording}`);
             console.log(`  - 已上传到服务器: ${hasUploaded}`);
-            console.log(`  - 录音时长: ${AppState.recordingTime}秒`);
-            console.log(`  - 音频大小: ${AppState.audioBlob ? AppState.audioBlob.size : 0}字节`);
             
-            // 关键逻辑：只有当本地没有录音且服务器没有上传过，才自动上传
-            // 并且录音时间要大于0.5秒（避免误触）
-            const shouldAutoUpload = !hasLocalRecording && !hasUploaded && AppState.recordingTime > 0.5;
+            // 只有满足所有条件才自动上传
+            const shouldAutoUpload = 
+                !hasLocalRecording && 
+                !hasUploaded && 
+                AppState.recordingTime >= 3.0 &&
+                AppState.audioBlob.size >= 10240;
             
             console.log(`  - 是否自动上传: ${shouldAutoUpload}`);
             
@@ -3573,7 +3862,7 @@
         }
 
         // 修改后的上传函数：上传前删除所有格式的文件
-        async function uploadToGitee() {
+        async function uploadToGitee(isAutoUpload = false) {
             if (!AppState.audioBlob) {
                 showStatus('请先录制音频！', 'error');
                 return;
@@ -3664,7 +3953,6 @@
                 
                 if (result.commit && result.commit.sha) {
                     console.log('上传到Gitee成功');
-                    // showStatus(`✅ 上传成功！格式: ${extension}`, 'success');
                     showStatus(`✅ 上传成功！`, 'success');
                     
                     // 6. 标记为已上传
@@ -3683,6 +3971,11 @@
                     updateSentenceItemInUI(AppState.currentSentence);
                     updateStats();
                     
+                    // 10. 检查是否需要庆祝（只在自动上传后检查）
+                    if (isAutoUpload) {
+                        checkAndCelebrateCompletion();
+                    }
+                    
                 } else {
                     throw new Error('Gitee返回数据格式错误');
                 }
@@ -3696,6 +3989,269 @@
                 elements.uploadBtn.disabled = false;
             }
         }
+
+
+        // 检查并触发庆祝
+        function checkAndCelebrateCompletion() {
+            const total = AppState.sentences.length;
+            const uploaded = AppState.sentences.filter(s => s.hasUploaded).length;
+            
+            console.log(`检查庆祝条件: ${uploaded}/${total} 已上传`);
+            
+            // 只有当全部上传完成时才庆祝
+            if (total > 0 && uploaded === total) {
+                console.log('🎉 恭喜！所有句子已上传完成！');
+                
+                // 检查是否已经庆祝过（避免重复）
+                const celebrationKey = `celebrated_${AppState.selectedDate}`;
+                const alreadyCelebrated = localStorage.getItem(celebrationKey);
+                
+                if (!alreadyCelebrated) {
+                    // 标记为已庆祝
+                    localStorage.setItem(celebrationKey, 'true');
+                    
+                    // 延迟一点显示，让用户先看到上传成功的消息
+                    setTimeout(() => {
+                        showCelebration();
+                    }, 1000);
+                } else {
+                    console.log('今天已经庆祝过了，不再重复显示');
+                }
+            }
+        }
+
+        // 烟花效果
+        let fireworksInterval = null;
+        let fireworksParticles = [];
+
+        function startFireworks() {
+            console.log('开始烟花效果');
+            
+            // 创建烟花容器
+            const fireworksContainer = document.createElement('div');
+            fireworksContainer.id = 'fireworksContainer';
+            fireworksContainer.style.cssText = `
+                position: fixed;
+                top: 0;
+                left: 0;
+                width: 100%;
+                height: 100%;
+                pointer-events: none;
+                z-index: 9998;
+            `;
+            document.body.appendChild(fireworksContainer);
+            
+            // 启动烟花发射
+            fireworksInterval = setInterval(() => {
+                launchFirework(fireworksContainer);
+            }, 800);
+            
+            // 自动停止烟花（10秒后）
+            setTimeout(() => {
+                stopFireworks();
+            }, 10000);
+        }
+
+        function stopFireworks() {
+            if (fireworksInterval) {
+                clearInterval(fireworksInterval);
+                fireworksInterval = null;
+            }
+            
+            const container = document.getElementById('fireworksContainer');
+            if (container) {
+                container.remove();
+            }
+            
+            // 清理所有粒子
+            fireworksParticles.forEach(particle => {
+                if (particle.element && particle.element.parentNode) {
+                    particle.element.remove();
+                }
+            });
+            fireworksParticles = [];
+        }
+
+        function launchFirework(container) {
+            // 随机位置发射
+            const startX = Math.random() * window.innerWidth;
+            const startY = window.innerHeight;
+            const targetX = startX + (Math.random() - 0.5) * 200;
+            const targetY = startY * 0.3 + Math.random() * 100;
+            
+            // 创建烟花拖尾
+            const trail = document.createElement('div');
+            trail.style.cssText = `
+                position: absolute;
+                width: 4px;
+                height: 4px;
+                background: linear-gradient(to top, #FFD700, #FF4500);
+                border-radius: 50%;
+                left: ${startX}px;
+                top: ${startY}px;
+                box-shadow: 0 0 10px #FFD700;
+                z-index: 9999;
+            `;
+            container.appendChild(trail);
+            
+            // 烟花发射动画
+            let posY = startY;
+            const trailAnimation = setInterval(() => {
+                posY -= 8;
+                const posX = startX + (targetX - startX) * (1 - (posY - targetY) / (startY - targetY));
+                
+                trail.style.top = posY + 'px';
+                trail.style.left = posX + 'px';
+                
+                // 到达目标位置爆炸
+                if (posY <= targetY) {
+                    clearInterval(trailAnimation);
+                    trail.remove();
+                    createExplosion(posX, posY, container);
+                }
+            }, 16);
+        }
+
+        function createExplosion(x, y, container) {
+            const colors = ['#FF0000', '#00FF00', '#0000FF', '#FFFF00', '#FF00FF', '#00FFFF'];
+            const particleCount = 80 + Math.random() * 40;
+            
+            for (let i = 0; i < particleCount; i++) {
+                const angle = Math.random() * Math.PI * 2;
+                const speed = 2 + Math.random() * 4;
+                const color = colors[Math.floor(Math.random() * colors.length)];
+                
+                const particle = document.createElement('div');
+                particle.style.cssText = `
+                    position: absolute;
+                    width: 6px;
+                    height: 6px;
+                    background: ${color};
+                    border-radius: 50%;
+                    left: ${x}px;
+                    top: ${y}px;
+                    box-shadow: 0 0 8px ${color};
+                    z-index: 9999;
+                `;
+                container.appendChild(particle);
+                
+                const particleObj = {
+                    element: particle,
+                    x: x,
+                    y: y,
+                    vx: Math.cos(angle) * speed,
+                    vy: Math.sin(angle) * speed,
+                    life: 100 + Math.random() * 50
+                };
+                
+                fireworksParticles.push(particleObj);
+            }
+            
+            // 粒子动画
+            if (!fireworksInterval) {
+                const particleAnimation = setInterval(() => {
+                    fireworksParticles.forEach((particle, index) => {
+                        if (particle.life <= 0) {
+                            if (particle.element && particle.element.parentNode) {
+                                particle.element.remove();
+                            }
+                            fireworksParticles.splice(index, 1);
+                            return;
+                        }
+                        
+                        particle.x += particle.vx;
+                        particle.y += particle.vy;
+                        particle.vy += 0.1; // 重力
+                        particle.life -= 1;
+                        
+                        // 淡出效果
+                        particle.element.style.opacity = particle.life / 100;
+                        particle.element.style.width = (particle.life / 100) * 6 + 'px';
+                        particle.element.style.height = (particle.life / 100) * 6 + 'px';
+                        
+                        particle.element.style.left = particle.x + 'px';
+                        particle.element.style.top = particle.y + 'px';
+                    });
+                    
+                    if (fireworksParticles.length === 0) {
+                        clearInterval(particleAnimation);
+                    }
+                }, 16);
+            }
+        }
+
+        // 添加庆祝效果
+        function showCelebration() {
+            console.log('🎉 所有句子已上传完成！显示庆祝效果');
+            
+            // 停止任何正在播放的音频
+            if (AppState.isPlaying) stopPlayback();
+            if (AppState.isRecording) stopRecording();
+            
+            // 1. 显示你真棒提示
+            const celebrationMessage = document.createElement('div');
+            celebrationMessage.id = 'celebrationMessage';
+            celebrationMessage.innerHTML = `
+                <div class="celebration-content">
+                    <div class="stars">⭐⭐⭐⭐⭐</div>
+                    <h1 class="celebration-title">🎉 恭喜完成！ 🎉</h1>
+                    <p class="celebration-subtitle">你太厉害了！完成了今天所有的朗读任务！</p>
+                    <div class="celebration-info">
+                        <p>✅ 已完成 ${AppState.sentences.length} 个句子的录音和上传</p>
+                        <p>📅 日期：${AppState.selectedDate}</p>
+                        <p>⏰ 完成时间：${new Date().toLocaleTimeString()}</p>
+                        <p>🏆 继续保持这个好习惯！</p>
+                    </div>
+                    <button class="btn-celebration-close" onclick="closeCelebration()">太棒了！继续努力</button>
+                </div>
+            `;
+            document.body.appendChild(celebrationMessage);
+            
+            // 2. 开始烟花效果
+            startFireworks();
+            
+            // 3. 播放庆祝音效（可选）
+            playCelebrationSound();
+        }
+
+        // 关闭庆祝效果
+        function closeCelebration() {
+            const message = document.getElementById('celebrationMessage');
+            if (message) {
+                message.remove();
+            }
+            
+            // 停止烟花
+            stopFireworks();
+        }
+
+        // 播放庆祝音效（可选）
+        function playCelebrationSound() {
+            try {
+                // 创建一个简单的庆祝音效
+                const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                const oscillator = audioContext.createOscillator();
+                const gainNode = audioContext.createGain();
+                
+                oscillator.connect(gainNode);
+                gainNode.connect(audioContext.destination);
+                
+                oscillator.frequency.setValueAtTime(523.25, audioContext.currentTime); // C5
+                oscillator.frequency.setValueAtTime(659.25, audioContext.currentTime + 0.2); // E5
+                oscillator.frequency.setValueAtTime(783.99, audioContext.currentTime + 0.4); // G5
+                
+                gainNode.gain.setValueAtTime(0.1, audioContext.currentTime);
+                gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 1);
+                
+                oscillator.start(audioContext.currentTime);
+                oscillator.stop(audioContext.currentTime + 1);
+                
+                console.log('播放庆祝音效');
+            } catch (error) {
+                console.log('无法播放音效:', error);
+            }
+        }
+
 
         // 辅助函数：获取特定格式文件的SHA
         async function getGiteeFileSHA(filePath) {
@@ -3980,10 +4536,12 @@
             const uploaded = AppState.sentences.filter(s => s.hasUploaded).length;
             
             elements.totalSentences.textContent = total;
-            elements.completedSentences.textContent = recorded;
             elements.uploadedSentences.textContent = uploaded;
-            elements.progressText.textContent = `${recorded}/${total} 已完成`;
             
+            // 修改这一行：将"已完成"改为"已上传"，并使用uploaded变量
+            elements.progressText.textContent = `${uploaded}/${total} 已上传`;
+            
+            // 建议保持进度条使用已完成的比例
             const progressPercent = total > 0 ? (recorded / total) * 100 : 0;
             elements.progressFill.style.width = `${progressPercent}%`;
         }
@@ -4022,19 +4580,56 @@
         // ==================== 事件监听器 ====================
         function setupEventListeners() {
             elements.recordBtn.addEventListener('click', () => {
-                // 检查是否有选中的句子
+                // 增加更详细的状态检查
                 if (!AppState.currentSentence) {
+                    console.error('recordBtn点击时没有选中句子:', {
+                        currentSentence: AppState.currentSentence,
+                        sentencesCount: AppState.sentences.length
+                    });
                     showStatus('请先从左侧选择一个句子', 'error');
+                    
+                    // 如果有句子列表，自动选择第一个
+                    if (AppState.sentences.length > 0) {
+                        console.log('自动选择第一个句子');
+                        selectSentence(AppState.sentences[0]);
+                        // 给用户一个提示
+                        setTimeout(() => {
+                            showStatus('已自动选择第一个句子，可以开始录音了', 'info');
+                        }, 100);
+                    }
                     return;
                 }
+                
+                // 检查录音状态
+                if (AppState.isRecording) {
+                    console.log('已经在录音中，忽略点击');
+                    return;
+                }
+                
                 startRecording();
             });
             
-            elements.stopBtn.addEventListener('click', stopRecording);
-            elements.uploadBtn.addEventListener('click', uploadToGitee);
-            elements.playBtn.addEventListener('click', () => {
-                // 检查是否有选中的句子
+            elements.stopBtn.addEventListener('click', () => {
                 if (!AppState.currentSentence) {
+                    console.warn('stopBtn点击时没有选中句子');
+                    return;
+                }
+                stopRecording();
+            });
+            
+            elements.uploadBtn.addEventListener('click', () => {
+                if (!AppState.currentSentence) {
+                    console.error('uploadBtn点击时没有选中句子');
+                    showStatus('请先选择一个句子', 'error');
+                    return;
+                }
+                // 手动上传时传递false，不触发庆祝检查
+                uploadToGitee(false);
+            });
+            
+            elements.playBtn.addEventListener('click', () => {
+                if (!AppState.currentSentence) {
+                    console.error('playBtn点击时没有选中句子');
                     showStatus('请先从左侧选择一个句子', 'error');
                     return;
                 }
