@@ -2401,10 +2401,11 @@
             
             elements.sentencesContainer.innerHTML = '';
             
-            AppState.sentences.forEach((sentence) => {
+            AppState.sentences.forEach((sentence, index) => {
                 const item = document.createElement('div');
                 item.className = `sentence-item ${sentence === AppState.currentSentence ? 'active' : ''}`;
                 item.dataset.sentenceId = sentence.id;
+                item.dataset.index = index + 1; // 添加索引
                 
                 // 使用最新的状态
                 let statusClass = 'status-pending';
@@ -2421,8 +2422,12 @@
                     statusText = '✓ 已录制';
                 }
                 
+                // 添加序号 - 在ID前面加上序号
+                // const displayId = `${prefix}${(index + 1).toString().padStart(2, '0')}.`;
+                const displayId = `${(index + 1).toString().padStart(2, '0')}.`;
+                
                 item.innerHTML = `
-                    <div class="sentence-text">${prefix}${sentence.text}</div>
+                    <div class="sentence-text">${displayId}${sentence.text}</div>
                     <div class="sentence-meta">
                         <span>${sentence.id}</span>
                         <span class="status-badge ${statusClass}">
