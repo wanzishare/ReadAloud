@@ -1480,21 +1480,22 @@
             elements.recordBtn.disabled = false;
         }
 
-        // 修改 initApp 函数中的日期初始化逻辑：
+        // ==================== 初始化应用 ====================
         async function initApp() {
             console.log('初始化应用...');
             
-            // 初始时禁用所有功能按钮
-            disableAllFeatureButtons();
+            // 1. 清理特定缓存（每次打开都清理）
+            clearTempCacheOnStartup();
             
-            // 1. 清理过期缓存
+            // 2. 清理过期缓存（24小时以上）
             cleanupExpiredCache();
             StateCache.cleanupExpiredCache();
             
-            // 2. 检测苹果设备并调整配置
+            // 3. 继续原有的初始化逻辑...
+            // 检测苹果设备并调整配置
             detectAppleDeviceAndAdjust();
             
-            // 3. 检查音频兼容性
+            // 检查音频兼容性
             checkAudioCompatibility();
             
             // 检查Gitee配置
@@ -1559,6 +1560,73 @@
                 console.error('初始化失败:', error);
                 showStatus('系统初始化失败: ' + error.message, 'error');
             }
+        }
+
+        // ==================== 新增函数：启动时清理临时缓存 ====================
+        function clearTempCacheOnStartup() {
+            console.log('清理临时缓存...');
+            let clearedCount = 0;
+            
+            // 要保留的缓存前缀（重要数据）
+            const keepPrefixes = [
+                'celebrated_',      // 庆祝标记
+                'last_checked_',    // 最后检查时间
+                'upload_status_'    // 上传状态（重要！）
+            ];
+            
+            // 要清理的缓存前缀（临时数据）
+            const clearPrefixes = [
+                'audio_',           // 音频文件（每次重新加载）
+                'sentences_',       // 句子数据（从服务器重新获取）
+                'excel_cache_',     // Excel缓存（重新获取最新数据）
+                'last_download_'    // 最后下载时间
+            ];
+            
+            // 遍历localStorage
+            for (let i = localStorage.length - 1; i >= 0; i--) {
+                const key = localStorage.key(i);
+                let shouldClear = false;
+                
+                // 检查是否属于需要清理的类型
+                for (const prefix of clearPrefixes) {
+                    if (key.startsWith(prefix)) {
+                        shouldClear = true;
+                        break;
+                    }
+                }
+                
+                // 检查是否属于需要保留的类型
+                for (const prefix of keepPrefixes) {
+                    if (key.startsWith(prefix)) {
+                        shouldClear = false;
+                        break;
+                    }
+                }
+                
+                if (shouldClear) {
+                    console.log(`清理缓存: ${key}`);
+                    localStorage.removeItem(key);
+                    clearedCount++;
+                }
+            }
+            
+            console.log(`清理了 ${clearedCount} 个临时缓存项`);
+            // showStatus(`已清理 ${clearedCount} 个临时缓存`, 'info');
+            
+            // 可选：清理所有cookie
+            clearAllCookies();
+        }
+
+        // ==================== 可选：清理Cookie ====================
+        function clearAllCookies() {
+            const cookies = document.cookie.split(";");
+            for (let i = 0; i < cookies.length; i++) {
+                const cookie = cookies[i];
+                const eqPos = cookie.indexOf("=");
+                const name = eqPos > -1 ? cookie.substr(0, eqPos).trim() : cookie.trim();
+                document.cookie = name + "=;expires=Thu, 01 Jan 1970 00:00:00 GMT;path=/";
+            }
+            console.log('所有Cookie已清理');
         }
 
         // 同时，修改 validateAndFixDates 函数：
