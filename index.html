@@ -1532,24 +1532,24 @@
                     setupEventListeners();
                     
                     // 11. 如果有句子，自动选择第一个
-                    if (AppState.sentences.length > 0) {
-                        console.log('初始化完成，自动选择第一个句子');
-                        // 延迟选择，确保UI完全渲染
-                        setTimeout(() => {
-                            selectSentence(AppState.sentences[0]);
-                        }, 300);
-                    } else {
-                        console.log('初始化完成，没有句子数据');
-                        // 显示提示信息
-                        elements.currentSentenceText.innerHTML = `
-                            <div style="text-align: center; color: #666;">
-                                <p>📝 当前日期没有句子数据</p>
-                                <p style="font-size: 14px; margin-top: 10px;">
-                                    请选择其他日期或检查Excel文件
-                                </p>
-                            </div>
-                        `;
-                    }
+                    // if (AppState.sentences.length > 0) {
+                    //     console.log('初始化完成，自动选择第一个句子');
+                    //     // 延迟选择，确保UI完全渲染
+                    //     setTimeout(() => {
+                    //         selectSentence(AppState.sentences[0]);
+                    //     }, 300);
+                    // } else {
+                    //     console.log('初始化完成，没有句子数据');
+                    //     // 显示提示信息
+                    //     elements.currentSentenceText.innerHTML = `
+                    //         <div style="text-align: center; color: #666;">
+                    //             <p>📝 当前日期没有句子数据</p>
+                    //             <p style="font-size: 14px; margin-top: 10px;">
+                    //                 请选择其他日期或检查Excel文件
+                    //             </p>
+                    //         </div>
+                    //     `;
+                    // }
                     
                     console.log('应用初始化完成');
                     
