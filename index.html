@@ -893,7 +893,7 @@
                     
                     renderSentenceList();
                     updateStats();
-                    showStatus(`已加载 ${sentences.length} 个句子`, 'success');
+                    // showStatus(`已加载 ${sentences.length} 个句子`, 'success');
                     
                     // 异步预加载其他日期的数据
                     setTimeout(() => {
@@ -1376,7 +1376,7 @@
                     // 11. 初始化按钮状态
                     initializeButtonStates();
                     
-                    showStatus('系统已就绪，请从左侧选择句子开始', 'info');
+                    // showStatus('系统已就绪，请从左侧选择句子开始', 'info');
                     
                     // 12. 在后台检查服务器状态（如果需要）
                     setTimeout(() => {
@@ -1801,7 +1801,7 @@
                         renderSentenceList();
                         updateStats();
                         
-                        showStatus(`已切换到 ${newDate} 的数据`, 'success');
+                        // showStatus(`已切换到 ${newDate} 的数据`, 'success');
                         
                     } else {
                         // 检查是否是未来日期
@@ -3684,7 +3684,8 @@
                 
                 if (result.commit && result.commit.sha) {
                     console.log('上传到Gitee成功');
-                    showStatus(`✅ 上传成功！格式: ${extension}`, 'success');
+                    // showStatus(`✅ 上传成功！格式: ${extension}`, 'success');
+                    showStatus(`✅ 上传成功！`, 'success');
                     
                     // 6. 标记为已上传
                     AppState.currentSentence.hasUploaded = true;
