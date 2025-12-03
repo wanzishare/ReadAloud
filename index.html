@@ -3,6 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <script src="https://cdn.sheetjs.com/xlsx-0.20.2/package/dist/xlsx.full.min.js"></script>
     <title>句子朗读录音系统</title>
     <div class="browser-notice" id="browserNotice" style="display: none;">
         <div class="notice-content">
@@ -509,7 +510,6 @@
     <div class="loading-indicator" id="loadingIndicator">
         <div class="loading-spinner"></div>
     </div>
-
     <div class="container">
         <!-- 头部 -->
         <div class="header">
@@ -531,11 +531,13 @@
 
             <!-- 右侧录音区 -->
             <div class="recording-area">
-                <!-- 当前句子展示 -->
+                <!-- 当前句子展示 -->                
                 <div class="current-sentence">
-                    <div class="sentence-id" id="currentSentenceId">S001</div>
+                    <div class="sentence-id" id="currentSentenceId">未选择</div>
                     <div class="current-sentence-text" id="currentSentenceText">
-                        请从左侧选择一句开始朗读录音
+                        <span style="color: #666; font-style: italic;">
+                            请从左侧选择一个句子开始录音
+                        </span>
                     </div>
                 </div>
 
@@ -589,7 +591,6 @@
     <div class="status-message" id="statusMessage"></div>
 
     <script>
-        // ==================== 配置文件 ====================
         const AUDIO_CONFIG = {
             // 检测浏览器支持的格式
             getSupportedMimeType() {
@@ -631,40 +632,67 @@
         };
 
 
-        // 注释掉GitHub配置，因为主要使用Gitee
-        const GITHUB_CONFIG = {
-            // 保留但不使用
-            REPOSITORY: 'wanzishare/ReadAloud',
-            TOKEN: ''
-        };
-
         // 主要使用Gitee配置
         const GITEE_CONFIG = {
             // 你的Gitee仓库，格式：用户名/仓库名
             REPOSITORY: 'bufan1990/read-aloud',
-            
             // 你的Gitee Personal Access Token（需要repo权限）
             TOKEN: 'f62b136877bc9f4a2491f1ef30286857',
-            
             // Gitee API基础URL
             API_BASE: 'https://gitee.com/api/v5',
-            
-            // Gitee RAW文件基础URL（用于直接下载文件）
-            RAW_BASE: 'https://gitee.com'
+            // 上传文件目录
+            RECORDINGS_DIR: 'recordings/2A',
         };
 
+
+        // 在CSS样式中添加重新加载按钮的样式
+        const additionalStyles = `
+        .btn-reload {
+            background: #17a2b8;
+            color: white;
+        }
+
+        .btn-reload:hover {
+            background: #138496;
+            transform: translateY(-2px);
+        }
+
+        .loading-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.5);
+            z-index: 10000;
+            display: none;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .loading-text {
+            color: white;
+            font-size: 18px;
+            margin-top: 20px;
+        }
+        `;
+
+        // 将样式添加到页面
+        const styleSheet = document.createElement('style');
+        styleSheet.textContent = additionalStyles;
+        document.head.appendChild(styleSheet);
         // 示例句子数据
         const SAMPLE_SENTENCES = [
-            { id: 'S001', text: '生活就像一盒巧克力，你永远不知道下一颗是什么味道。', recorded: false, hasUploaded: false },
-            { id: 'S002', text: '成功不是终点，失败也并非末日，重要的是继续前进的勇气。', recorded: false, hasUploaded: false },
-            { id: 'S003', text: '学习如逆水行舟，不进则退。', recorded: false, hasUploaded: false },
-            { id: 'S004', text: '时间是最好的老师，但遗憾的是，它会杀死所有学生。', recorded: false, hasUploaded: false },
-            { id: 'S005', text: '梦想不会逃跑，逃跑的永远是自己。', recorded: false, hasUploaded: false },
-            { id: 'S006', text: '真正的发现之旅不在于寻找新风景，而在于拥有新眼光。', recorded: false, hasUploaded: false },
-            { id: 'S007', text: '忍耐之树结出黄金之果。', recorded: false, hasUploaded: false },
-            { id: 'S008', text: '人生没有彩排，每一天都是现场直播。', recorded: false, hasUploaded: false },
-            { id: 'S009', text: '机会总是留给有准备的人。', recorded: false, hasUploaded: false },
-            { id: 'S010', text: '千里之行，始于足下。', recorded: false, hasUploaded: false }
+            // { id: 'S001', text: '生活就像一盒巧克力，你永远不知道下一颗是什么味道。', recorded: false, hasUploaded: false },
+            // { id: 'S002', text: '成功不是终点，失败也并非末日，重要的是继续前进的勇气。', recorded: false, hasUploaded: false },
+            // { id: 'S003', text: '学习如逆水行舟，不进则退。', recorded: false, hasUploaded: false },
+            // { id: 'S004', text: '时间是最好的老师，但遗憾的是，它会杀死所有学生。', recorded: false, hasUploaded: false },
+            // { id: 'S005', text: '梦想不会逃跑，逃跑的永远是自己。', recorded: false, hasUploaded: false },
+            // { id: 'S006', text: '真正的发现之旅不在于寻找新风景，而在于拥有新眼光。', recorded: false, hasUploaded: false },
+            // { id: 'S007', text: '忍耐之树结出黄金之果。', recorded: false, hasUploaded: false },
+            // { id: 'S008', text: '人生没有彩排，每一天都是现场直播。', recorded: false, hasUploaded: false },
+            // { id: 'S009', text: '机会总是留给有准备的人。', recorded: false, hasUploaded: false },
+            // { id: 'S010', text: '千里之行，始于足下。', recorded: false, hasUploaded: false }
         ];
 
         // ==================== 应用状态 ====================
@@ -677,13 +705,6 @@
             recorder: null,
             timerInterval: null,
             recordingTime: 0,
-            todayDate: (() => {
-                const now = new Date();
-                const year = now.getFullYear();
-                const month = String(now.getMonth() + 1).padStart(2, '0');
-                const day = String(now.getDate()).padStart(2, '0');
-                return `${year}-${month}-${day}`;
-            })(),
             selectedDate: (() => {
                 const now = new Date();
                 const year = now.getFullYear();
@@ -691,6 +712,14 @@
                 const day = String(now.getDate()).padStart(2, '0');
                 return `${year}-${month}-${day}`;
             })(),
+            todayDate: (() => {
+                const now = new Date();
+                const year = now.getFullYear();
+                const month = String(now.getMonth() + 1).padStart(2, '0');
+                const day = String(now.getDate()).padStart(2, '0');
+                return `${year}-${month}-${day}`;
+            })(),
+            isLoadingExcel: false,
             config: GITEE_CONFIG, // 使用Gitee配置
             isPlaying: false,
             currentAudio: null,            
@@ -700,6 +729,9 @@
             audioDuration: 0,
             isDownloading: false,
             lastDownloadTime: null,
+            sentences: [], // 初始为空，从Excel加载
+            excelData: null, // 存储Excel数据
+            excelUrl: 'xlsx/read_aloud_2A.xlsx', // Excel文件路径
             audioConfig: {
                 recordingMimeType: AUDIO_CONFIG.getSupportedMimeType(),
                 playableFormat: 'audio/webm'
@@ -727,6 +759,538 @@
             loadingIndicator: document.getElementById('loadingIndicator')
         };
 
+        // ==================== 状态缓存管理 ====================
+        const StateCache = {
+            // 缓存已上传状态
+            CACHE_PREFIX: 'upload_status_',
+            CACHE_TTL: 24 * 60 * 60 * 1000, // 24小时
+            
+            // 获取缓存的上传状态
+            getUploadStatus(date, sentenceId) {
+                try {
+                    const cacheKey = `${this.CACHE_PREFIX}${date}_${sentenceId}`;
+                    const cached = localStorage.getItem(cacheKey);
+                    
+                    if (cached) {
+                        const data = JSON.parse(cached);
+                        const now = Date.now();
+                        
+                        // 检查缓存是否过期
+                        if (now - data.timestamp < this.CACHE_TTL) {
+                            console.log(`从缓存获取上传状态: ${date}_${sentenceId} = ${data.hasUploaded}`);
+                            return data.hasUploaded;
+                        } else {
+                            // 缓存过期，清理
+                            localStorage.removeItem(cacheKey);
+                        }
+                    }
+                } catch (error) {
+                    console.warn('读取上传状态缓存失败:', error);
+                }
+                return null; // 没有缓存
+            },
+            
+            // 保存上传状态到缓存
+            setUploadStatus(date, sentenceId, hasUploaded) {
+                try {
+                    const cacheKey = `${this.CACHE_PREFIX}${date}_${sentenceId}`;
+                    const cacheData = {
+                        hasUploaded: hasUploaded,
+                        timestamp: Date.now(),
+                        date: date,
+                        sentenceId: sentenceId
+                    };
+                    localStorage.setItem(cacheKey, JSON.stringify(cacheData));
+                    console.log(`缓存上传状态: ${date}_${sentenceId} = ${hasUploaded}`);
+                } catch (error) {
+                    console.warn('保存上传状态缓存失败:', error);
+                }
+            },
+            
+            // 批量保存上传状态
+            batchSetUploadStatus(date, statusMap) {
+                console.log(`批量缓存 ${date} 的上传状态:`, statusMap);
+                Object.keys(statusMap).forEach(sentenceId => {
+                    this.setUploadStatus(date, sentenceId, statusMap[sentenceId]);
+                });
+            },
+            
+            // 清理过期缓存
+            cleanupExpiredCache() {
+                const now = Date.now();
+                const prefix = this.CACHE_PREFIX;
+                
+                for (let i = 0; i < localStorage.length; i++) {
+                    const key = localStorage.key(i);
+                    if (key.startsWith(prefix)) {
+                        try {
+                            const data = JSON.parse(localStorage.getItem(key));
+                            if (now - data.timestamp > this.CACHE_TTL) {
+                                localStorage.removeItem(key);
+                            }
+                        } catch {
+                            localStorage.removeItem(key);
+                        }
+                    }
+                }
+            }
+        };
+
+        function resetToNoSelectionState() {
+            console.log('重置到无选择状态');
+            
+            // 停止任何正在进行的操作
+            if (AppState.isPlaying) stopPlayback();
+            if (AppState.isRecording) stopRecording();
+            if (AppState.timerInterval) clearInterval(AppState.timerInterval);
+            if (AppState.playbackTimerInterval) clearInterval(AppState.playbackTimerInterval);
+            
+            // 重置应用状态
+            AppState.currentSentence = null;
+            AppState.audioBlob = null;
+            AppState.recordingTime = 0;
+            AppState.playbackTime = 0;
+            
+            // 重置UI显示
+            elements.currentSentenceId.textContent = '未选择';
+            elements.currentSentenceText.innerHTML = '<span style="color: #666; font-style: italic;">请从左侧选择一个句子开始录音</span>';
+            elements.timer.textContent = '00:00';
+            elements.progressFill.style.width = '0%';
+            
+            // 重置按钮状态
+            elements.recordBtn.disabled = false;
+            elements.recordBtn.innerHTML = '<span>🎤 开始录音</span>';
+            elements.stopBtn.disabled = true;
+            elements.playBtn.disabled = true;
+            elements.playBtn.innerHTML = '<span>▶️ 播放录音</span>';
+            elements.playBtn.classList.remove('playing');
+            elements.uploadBtn.disabled = true;
+            elements.uploadBtn.innerHTML = '<span>📤 上传到服务器</span>';
+            
+            // 移除列表激活状态
+            const items = document.querySelectorAll('.sentence-item');
+            items.forEach(item => item.classList.remove('active'));
+        }
+
+        // 智能加载句子数据 - 优先加载今天，其他异步
+        async function smartLoadSentences() {
+            console.log('智能加载句子数据...');
+            
+            AppState.isLoadingExcel = true;
+            
+            try {
+                // 获取当前日期的句子
+                const sentences = getSentencesByDate(AppState.selectedDate);
+                
+                if (sentences && sentences.length > 0) {
+                    AppState.sentences = sentences;
+                    console.log('当前日期句子加载成功:', sentences.length);
+                    
+                    // 检查本地录音状态
+                    await checkDateRecordings();
+                    
+                    renderSentenceList();
+                    updateStats();
+                    showStatus(`已加载 ${sentences.length} 个句子`, 'success');
+                    
+                    // 异步预加载其他日期的数据
+                    setTimeout(() => {
+                        preloadOtherDates();
+                    }, 100);
+                    
+                } else {
+                    // 检查是否是未来日期
+                    if (AppState.selectedDate > AppState.todayDate) {
+                        console.log('未来日期，创建空列表');
+                        AppState.sentences = [];
+                        renderSentenceList();
+                        updateStats();
+                        showStatus('未来日期，可以提前准备录音', 'info');
+                    } else {
+                        console.log('当前日期没有句子数据，使用示例句子');
+                        useFallbackSentences();
+                        renderSentenceList();
+                        updateStats();
+                        showStatus('当前日期没有数据，使用示例句子', 'info');
+                    }
+                }
+                
+            } catch (error) {
+                console.error('智能加载失败:', error);
+                useFallbackSentences();
+                renderSentenceList();
+                updateStats();
+                showStatus('数据加载失败，使用示例句子', 'error');
+            } finally {
+                AppState.isLoadingExcel = false;
+            }
+        }
+
+        // 为指定日期加载句子数据
+        async function loadSentencesForDate(date, isPriority = false) {
+            console.log(`${isPriority ? '优先' : '异步'}加载 ${date} 的句子数据`);
+            
+            try {
+                // 检查本地缓存
+                const cacheKey = `excel_cache_${date}`;
+                const cached = localStorage.getItem(cacheKey);
+                
+                if (cached && isPriority) {
+                    console.log(`从缓存加载 ${date} 的数据`);
+                    const parsed = JSON.parse(cached);
+                    if (parsed && parsed.sentences && parsed.timestamp) {
+                        const cacheAge = Date.now() - parsed.timestamp;
+                        if (cacheAge < 3600000) {
+                            return parsed.sentences;
+                        }
+                    }
+                }
+                
+                // 确保Excel数据已加载
+                if (!AppState.excelData) {
+                    // 直接从Gitee加载
+                    const arrayBuffer = await fetchExcelFromGitee();
+                    if (arrayBuffer) {
+                        AppState.excelData = parseExcelData(arrayBuffer);
+                    }
+                }
+                
+                if (!AppState.excelData) {
+                    throw new Error('Excel数据加载失败');
+                }
+                
+                // 获取指定日期的句子
+                const sentences = getSentencesByDate(date);
+                
+                if (sentences && sentences.length > 0) {
+                    // 缓存数据
+                    const cacheData = {
+                        sentences: sentences,
+                        timestamp: Date.now(),
+                        date: date
+                    };
+                    localStorage.setItem(cacheKey, JSON.stringify(cacheData));
+                    
+                    console.log(`${date} 加载完成:`, sentences.length, '个句子');
+                    return sentences;
+                }
+                
+                return null;
+                
+            } catch (error) {
+                console.error(`加载 ${date} 数据失败:`, error);
+                return null;
+            }
+        }
+        // 在加载时显示进度
+        function showProgress(message, progress = 0) {
+            const progressElement = document.getElementById('loadingProgress') || createProgressElement();
+            
+            if (progressElement) {
+                progressElement.innerHTML = `
+                    <div class="loading-spinner"></div>
+                    <div class="loading-text">${message}</div>
+                    ${progress > 0 ? `<div class="progress-bar"><div class="progress-fill" style="width: ${progress}%"></div></div>` : ''}
+                `;
+            }
+        }
+
+        function createProgressElement() {
+            const existing = document.getElementById('loadingIndicator');
+            if (existing) {
+                const progressDiv = document.createElement('div');
+                progressDiv.id = 'loadingProgress';
+                progressDiv.style.cssText = 'text-align: center; margin-top: 20px;';
+                existing.appendChild(progressDiv);
+                return progressDiv;
+            }
+            return null;
+        }
+
+        // 清理过期缓存
+        function cleanupExpiredCache() {
+            console.log('清理过期缓存...');
+            const now = Date.now();
+            const datePattern = /^excel_cache_\d{4}-\d{2}-\d{2}$/;
+            let cleanedCount = 0;
+            
+            for (let i = 0; i < localStorage.length; i++) {
+                const key = localStorage.key(i);
+                if (datePattern.test(key)) {
+                    try {
+                        const cached = localStorage.getItem(key);
+                        const parsed = JSON.parse(cached);
+                        
+                        if (parsed && parsed.timestamp && (now - parsed.timestamp) > 86400000) {
+                            localStorage.removeItem(key);
+                            cleanedCount++;
+                        }
+                    } catch (e) {
+                        localStorage.removeItem(key);
+                        cleanedCount++;
+                    }
+                }
+            }
+            
+            console.log(`清理了 ${cleanedCount} 个过期缓存`);
+        }
+
+        // 预加载其他日期数据
+        async function preloadOtherDates() {
+            if (!AppState.excelData) return;
+            
+            console.log('开始预加载其他日期数据...');
+            
+            // 获取Excel中的所有工作表（日期）
+            const sheetNames = Object.keys(AppState.excelData);
+            const datesToPreload = sheetNames.filter(name => 
+                name !== AppState.todayDate && // 排除今天
+                isValidDateString(name) // 只处理有效日期
+            );
+            
+            console.log('需要预加载的日期:', datesToPreload);
+            
+            // 限制同时预加载的数量
+            const maxConcurrent = 3;
+            for (let i = 0; i < datesToPreload.length; i += maxConcurrent) {
+                const batch = datesToPreload.slice(i, i + maxConcurrent);
+                
+                const promises = batch.map(async (date) => {
+                    try {
+                        await loadSentencesForDate(date, false);
+                        console.log(`预加载完成: ${date}`);
+                    } catch (error) {
+                        console.warn(`预加载 ${date} 失败:`, error);
+                    }
+                });
+                
+                await Promise.allSettled(promises);
+            }
+            
+            console.log('其他日期数据预加载完成');
+        }
+
+        // 检查字符串是否为有效日期
+        function isValidDateString(dateStr) {
+            const regex = /^\d{4}-\d{2}-\d{2}$/;
+            if (!regex.test(dateStr)) return false;
+            
+            const date = new Date(dateStr);
+            return date instanceof Date && !isNaN(date);
+        }
+
+        // 使用后备句子
+        function useFallbackSentences() {
+            AppState.sentences = SAMPLE_SENTENCES.map(s => ({
+                ...s,
+                recorded: false,
+                hasUploaded: false
+            }));
+            
+            console.log('使用后备句子:', AppState.sentences.length);
+            showStatus('使用示例句子', 'info');
+        }
+
+        // 从Gitee获取Excel文件
+        async function fetchExcelFromGitee() {
+            try {
+                console.log('开始从Gitee获取Excel文件...');
+                
+                // 方法1: 使用Gitee API获取文件内容（最可靠的方式）
+                const apiUrl = `${GITEE_CONFIG.API_BASE}/repos/${GITEE_CONFIG.REPOSITORY}/contents/${AppState.excelUrl}?access_token=${GITEE_CONFIG.TOKEN}`;
+                
+                console.log('API请求URL:', apiUrl);
+                
+                const response = await fetch(apiUrl, {
+                    method: 'GET',
+                    headers: {
+                        'Accept': 'application/json',
+                        'Cache-Control': 'no-cache'
+                    }
+                });
+                
+                console.log('API响应状态:', response.status);
+                
+                if (!response.ok) {
+                    throw new Error(`Gitee API返回错误: ${response.status} ${response.statusText}`);
+                }
+                
+                const fileData = await response.json();
+                console.log('Gitee API响应:', fileData);
+                
+                if (!fileData.content) {
+                    throw new Error('Gitee返回的文件数据中没有content字段');
+                }
+                
+                if (fileData.encoding !== 'base64') {
+                    throw new Error(`不支持的编码格式: ${fileData.encoding}`);
+                }
+                
+                // 解码base64内容
+                console.log('开始解码base64数据...');
+                const binaryString = atob(fileData.content);
+                const bytes = new Uint8Array(binaryString.length);
+                
+                for (let i = 0; i < binaryString.length; i++) {
+                    bytes[i] = binaryString.charCodeAt(i);
+                }
+                
+                const arrayBuffer = bytes.buffer;
+                console.log('Excel文件下载成功，大小:', arrayBuffer.byteLength, 'bytes');
+                
+                // 验证文件大小
+                if (arrayBuffer.byteLength < 100) {
+                    console.warn('文件大小异常，可能下载失败:', arrayBuffer.byteLength, 'bytes');
+                }
+                
+                return arrayBuffer;
+                
+            } catch (error) {
+                console.error('从Gitee获取Excel失败:', error);
+                
+                // 尝试备用方法：使用直接链接（不使用代理）
+                console.log('尝试备用方法获取文件...');
+                try {
+                    const directUrl = `https://gitee.com/${GITEE_CONFIG.REPOSITORY}/raw/master/${AppState.excelUrl}`;
+                    console.log('备用方法URL:', directUrl);
+                    
+                    const response = await fetch(directUrl, {
+                        method: 'GET',
+                        headers: {
+                            'Accept': 'application/octet-stream'
+                        }
+                    });
+                    
+                    if (response.ok) {
+                        const arrayBuffer = await response.arrayBuffer();
+                        console.log('备用方法成功，文件大小:', arrayBuffer.byteLength, 'bytes');
+                        return arrayBuffer;
+                    }
+                } catch (directError) {
+                    console.error('备用方法也失败:', directError);
+                }
+                
+                throw new Error(`无法从Gitee获取Excel文件: ${error.message}`);
+            }
+        }
+
+
+        // 解析Excel数据
+        function parseExcelData(arrayBuffer) {
+            try {
+                console.log('开始解析Excel数据...');
+                
+                const workbook = XLSX.read(arrayBuffer, { type: 'array' });
+                
+                console.log('Excel文件信息:');
+                console.log('工作表数量:', workbook.SheetNames.length);
+                console.log('工作表名称:', workbook.SheetNames);
+                
+                const excelData = {};
+                
+                workbook.SheetNames.forEach(sheetName => {
+                    const worksheet = workbook.Sheets[sheetName];
+                    const jsonData = XLSX.utils.sheet_to_json(worksheet, {
+                        header: 1,
+                        defval: ''
+                    });
+                    
+                    excelData[sheetName] = jsonData;
+                    console.log(`工作表 "${sheetName}" 数据行数:`, jsonData.length);
+                });
+                
+                console.log('Excel数据解析完成');
+                return excelData;
+                
+            } catch (error) {
+                console.error('解析Excel数据失败:', error);
+                throw error;
+            }
+        }
+
+        // 根据日期获取句子
+        function getSentencesByDate(date) {
+            if (!AppState.excelData) {
+                console.error('Excel数据未加载');
+                return null;
+            }
+            
+            console.log('根据日期获取句子，日期:', date);
+            
+            let sheetData = AppState.excelData[date];
+            
+            if (!sheetData) {
+                console.log('未找到对应工作表，尝试其他格式...');
+                return null;
+            }
+            
+            console.log(`找到工作表，行数:`, sheetData.length);
+            
+            const sentences = [];
+            
+            for (let i = 1; i < sheetData.length; i++) {
+                const row = sheetData[i];
+                
+                if (row && row.length >= 2) {
+                    const id = row[0] || `S${i.toString().padStart(3, '0')}`;
+                    const text = row[1] || '';
+                    
+                    if (text.trim()) {
+                        sentences.push({
+                            id: id.toString(),
+                            text: text.trim(),
+                            recorded: false,
+                            hasUploaded: false
+                        });
+                    }
+                }
+            }
+            
+            console.log('从Excel解析出的句子数量:', sentences.length);
+            
+            if (sentences.length === 0) {
+                return parseAlternativeExcelFormat(sheetData, date);
+            }
+            
+            return sentences;
+        }
+
+        // 备用解析格式
+        function parseAlternativeExcelFormat(sheetData, date) {
+            console.log('尝试备用格式解析...');
+            
+            const sentences = [];
+            let sentenceCount = 0;
+            
+            for (let i = 0; i < sheetData.length; i++) {
+                const row = sheetData[i];
+                
+                if (row && Array.isArray(row)) {
+                    for (let j = 0; j < row.length; j++) {
+                        const cell = row[j];
+                        
+                        if (typeof cell === 'string' && 
+                            cell.trim().length > 10 &&
+                            !cell.includes('日期') && 
+                            !cell.includes('时间') &&
+                            !cell.includes('ID')) {
+                            
+                            sentenceCount++;
+                            sentences.push({
+                                id: `S${sentenceCount.toString().padStart(3, '0')}`,
+                                text: cell.trim(),
+                                recorded: false,
+                                hasUploaded: false
+                            });
+                        }
+                    }
+                }
+            }
+            
+            console.log('备用格式解析结果:', sentences.length, '个句子');
+            return sentences.length > 0 ? sentences : null;
+        }
+
         // 检测苹果设备并调整配置
         function detectAppleDeviceAndAdjust() {
             const isSafari = /^((?!chrome|android).)*safari/i.test(navigator.userAgent);
@@ -738,7 +1302,6 @@
             if (isIOS || isSafari) {
                 console.log('苹果/Safari设备检测到，启用兼容模式');
                 
-                // Safari对WebM支持有限，优先使用MP4
                 const audio = new Audio();
                 if (audio.canPlayType('audio/mp4;codecs=mp4a.40.2')) {
                     AppState.audioConfig.recordingMimeType = 'audio/mp4';
@@ -748,49 +1311,32 @@
                     AppState.audioConfig.playableFormat = 'audio/wav';
                 }
                 
-                // 显示提示
                 showStatus('检测到苹果设备，已启用兼容模式', 'info');
                 return true;
             }
             return false;
         }
 
-        // 添加一个日期验证和修复函数
-        function validateAndFixDates() {
-            console.log('当前日期状态:', {
-                todayDate: AppState.todayDate,
-                selectedDate: AppState.selectedDate,
-                localToday: (() => {
-                    const now = new Date();
-                    return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
-                })()
-            });
-            
-            // 如果selectedDate比今天晚，调整为今天
-            if (AppState.selectedDate > AppState.todayDate) {
-                console.log('警告：选择的日期在未来，调整为今天');
-                AppState.selectedDate = AppState.todayDate;
-            }
-            
-            // 如果selectedDate比30天前还早，调整为30天前
-            const thirtyDaysAgo = new Date();
-            thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-            const minDateStr = `${thirtyDaysAgo.getFullYear()}-${String(thirtyDaysAgo.getMonth() + 1).padStart(2, '0')}-${String(thirtyDaysAgo.getDate()).padStart(2, '0')}`;
-            
-            if (AppState.selectedDate < minDateStr) {
-                console.log('警告：选择的日期超过30天限制，调整为30天前');
-                AppState.selectedDate = minDateStr;
-            }
+        // 添加缺失的辅助函数
+        function getLocalDateString(date) {
+            const year = date.getFullYear();
+            const month = String(date.getMonth() + 1).padStart(2, '0');
+            const day = String(date.getDate()).padStart(2, '0');
+            return `${year}-${month}-${day}`;
         }
 
-        // ==================== 初始化应用 ====================
+        // 修改 initApp 函数中的日期初始化逻辑：
         function initApp() {
             console.log('初始化应用...');
             
-            // 1. 检测苹果设备并调整配置
+            // 1. 清理过期缓存
+            cleanupExpiredCache();
+            StateCache.cleanupExpiredCache(); // 清理上传状态缓存
+            
+            // 2. 检测苹果设备并调整配置
             detectAppleDeviceAndAdjust();
             
-            // 2. 检查音频兼容性
+            // 3. 检查音频兼容性
             checkAudioCompatibility();
             
             // 检查Gitee配置
@@ -798,30 +1344,166 @@
                 showStatus('请先配置Gitee信息！', 'error');
                 return;
             }
-            // 1. 验证和修复日期
+            
+            // 4. 初始化日期
+            const now = new Date();
+            AppState.todayDate = getLocalDateString(now);
+            AppState.selectedDate = AppState.todayDate; // 默认选择今天
+            
+            // 5. 验证和修复日期
             validateAndFixDates();
+            
+            // 6. 从Gitee加载Excel数据
+            loadExcelData().then(async (excelData) => {
+                if (excelData) {
+                    AppState.excelData = excelData;
+                    
+                    // 7. 获取所有可用的日期
+                    const availableDates = getAllAvailableDates();
+                    console.log('可用的日期:', availableDates);
+                    
+                    // 8. 添加日期选择器
+                    createDateSelector(availableDates);
+                    
+                    // 9. 加载当前日期的句子数据
+                    await smartLoadSentences();
+                    
+                    // 10. 设置事件监听器
+                    setupEventListeners();
+                    
+                    // 11. 初始化按钮状态
+                    initializeButtonStates();
+                    
+                    showStatus('系统已就绪，请从左侧选择句子开始', 'info');
+                    
+                    // 12. 在后台检查服务器状态（如果需要）
+                    setTimeout(() => {
+                        if (shouldCheckServerStatus()) {
+                            checkServerFilesInBackground();
+                        }
+                    }, 2000); // 延迟2秒，避免影响初始加载
+                } else {
+                    showStatus('无法加载Excel数据', 'error');
+                }
+            }).catch(error => {
+                console.error('初始化失败:', error);
+                showStatus('系统初始化失败', 'error');
+            });
+        }
 
-            // 1. 添加日期选择器
-            createDateSelector();
+        // 同时，修改 validateAndFixDates 函数：
+        function validateAndFixDates() {
+            console.log('当前日期状态:', {
+                todayDate: AppState.todayDate,
+                selectedDate: AppState.selectedDate,
+                localToday: getLocalDateString(new Date())
+            });
             
-            // 2. 加载当前选择日期的句子数据
-            loadSentencesForSelectedDate();
+            // 确保 selectedDate 有值
+            if (!AppState.selectedDate) {
+                AppState.selectedDate = AppState.todayDate;
+            }
             
-            // 3. 立即渲染句子列表
-            renderSentenceList();
+            // 如果 selectedDate 比 30 天前还早，调整为 30 天前
+            const thirtyDaysAgo = new Date();
+            thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+            const minDateStr = getLocalDateString(thirtyDaysAgo);
             
-            // 4. 更新统计信息
-            updateStats();
+            if (AppState.selectedDate < minDateStr) {
+                console.log('警告：选择的日期超过30天限制，调整为30天前');
+                AppState.selectedDate = minDateStr;
+            }
+        }
+
+        // 新增函数：加载Excel数据
+        async function loadExcelData() {
+            try {
+                console.log('开始加载Excel数据...');
+                const arrayBuffer = await fetchExcelFromGitee();
+                
+                if (arrayBuffer) {
+                    const excelData = parseExcelData(arrayBuffer);
+                    console.log('Excel数据加载成功，工作表数量:', Object.keys(excelData).length);
+                    return excelData;
+                }
+                return null;
+            } catch (error) {
+                console.error('加载Excel数据失败:', error);
+                return null;
+            }
+        }
+
+        // 新增函数：获取所有可用的日期
+        function getAllAvailableDates() {
+            if (!AppState.excelData) {
+                console.log('Excel数据未加载，无法获取日期列表');
+                return [];
+            }
             
-            // 5. 设置事件监听器
-            setupEventListeners();
+            const availableDates = [];
             
-            showStatus('系统已就绪，可以开始录音', 'info');
+            // 1. 从Excel工作表中获取日期
+            Object.keys(AppState.excelData).forEach(sheetName => {
+                // 检查是否是有效的日期格式
+                if (isValidDateString(sheetName)) {
+                    availableDates.push(sheetName);
+                }
+            });
             
-            // 6. 在页面完全加载后，异步检查服务器状态
-            setTimeout(() => {
-                checkServerFilesInBackground();
-            }, 100);
+            // 2. 如果有需要，可以在这里添加未来的日期
+            // 例如：添加未来7天的日期
+            addFutureDates(availableDates, 7);
+            
+            // 3. 按日期排序
+            availableDates.sort();
+            
+            console.log('可用的日期列表:', availableDates);
+            return availableDates;
+        }
+
+        // 新增函数：添加未来日期
+        function addFutureDates(dateArray, daysToAdd) {
+            const today = new Date();
+            
+            for (let i = 1; i <= daysToAdd; i++) {
+                const futureDate = new Date(today);
+                futureDate.setDate(today.getDate() + i);
+                
+                const year = futureDate.getFullYear();
+                const month = String(futureDate.getMonth() + 1).padStart(2, '0');
+                const day = String(futureDate.getDate()).padStart(2, '0');
+                const dateStr = `${year}-${month}-${day}`;
+                
+                // 避免重复添加
+                if (!dateArray.includes(dateStr)) {
+                    dateArray.push(dateStr);
+                }
+            }
+        }
+
+
+        // 添加按钮状态初始化函数
+        function initializeButtonStates() {
+            console.log('初始化按钮状态...');
+            
+            // 如果没有选中句子，禁用所有功能按钮
+            if (!AppState.currentSentence) {
+                console.log('没有选中句子，禁用功能按钮');
+                
+                // 录音按钮：可以点击（但点击时会检查是否有选中句子）
+                elements.recordBtn.disabled = false;
+                
+                // 其他按钮：禁用
+                elements.stopBtn.disabled = true;
+                elements.playBtn.disabled = true;
+                elements.uploadBtn.disabled = true;
+                
+                // 更新当前句子显示
+                elements.currentSentenceId.textContent = '未选择';
+                elements.currentSentenceText.textContent = '请从左侧列表中选择一个句子开始录音';
+                elements.timer.textContent = '00:00';
+                elements.progressFill.style.width = '0%';
+            }
         }
 
         // 添加调试函数来检查日期
@@ -860,8 +1542,28 @@
             });
         }
 
+        // 修改创建日期选项的逻辑
+        function createDateOption(date) {
+            const option = document.createElement('option');
+            option.value = date;
+            option.textContent = formatDateDisplay(date);
+            
+            // 如果是今天，添加特殊样式
+            if (date === AppState.todayDate) {
+                option.classList.add('date-option-today');
+            }
+            
+            return option;
+        }
+
         // 创建日期选择器
-        function createDateSelector() {
+        function createDateSelector(availableDates) {
+            if (!availableDates || availableDates.length === 0) {
+                console.log('没有可用的日期数据');
+                showStatus('没有找到日期数据', 'error');
+                return null;
+            }
+            
             // 创建日期选择器容器
             const dateSelector = document.createElement('div');
             dateSelector.className = 'date-selector';
@@ -871,45 +1573,181 @@
             label.textContent = '📅 选择日期:';
             label.htmlFor = 'datePicker';
             
-            // 日期输入框
-            const dateInput = document.createElement('input');
-            dateInput.type = 'date';
-            dateInput.id = 'datePicker';
-            dateInput.value = AppState.selectedDate;
+            // 创建下拉选择框
+            const dateSelect = document.createElement('select');
+            dateSelect.id = 'datePicker';
+            dateSelect.className = 'date-select';
+            dateSelect.title = '选择要录音的日期';
             
-            // 修复日期范围计算
-            const getLocalDateString = (date) => {
-                // 使用本地时间而不是UTC时间
-                const year = date.getFullYear();
-                const month = String(date.getMonth() + 1).padStart(2, '0');
-                const day = String(date.getDate()).padStart(2, '0');
-                return `${year}-${month}-${day}`;
-            };
+            // 添加CSS样式（如果尚未添加）
+            if (!document.querySelector('#date-selector-styles')) {
+                const style = document.createElement('style');
+                style.id = 'date-selector-styles';
+                style.textContent = `
+                    .date-selector {
+                        display: flex;
+                        align-items: center;
+                        gap: 10px;
+                        margin: 20px 40px;
+                        padding: 15px 20px;
+                        background: linear-gradient(135deg, rgba(102, 126, 234, 0.1) 0%, rgba(118, 75, 162, 0.1) 100%);
+                        border-radius: 10px;
+                        border: 1px solid rgba(102, 126, 234, 0.2);
+                    }
+                    
+                    .date-selector label {
+                        font-weight: bold;
+                        color: #333;
+                        font-size: 16px;
+                        white-space: nowrap;
+                    }
+                    
+                    .date-select {
+                        padding: 8px 12px;
+                        border: 2px solid #667eea;
+                        border-radius: 6px;
+                        font-size: 14px;
+                        color: #333;
+                        background: white;
+                        cursor: pointer;
+                        flex: 1;
+                        max-width: 250px;
+                        min-width: 180px;
+                        outline: none;
+                        transition: all 0.3s ease;
+                    }
+                    
+                    .date-select:hover {
+                        border-color: #764ba2;
+                    }
+                    
+                    .date-select:focus {
+                        border-color: #764ba2;
+                        box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+                    }
+                    
+                    .date-select option {
+                        padding: 8px;
+                        font-size: 14px;
+                    }
+                    
+                    .date-option-today {
+                        color: #ff6b6b;
+                        font-weight: bold;
+                        background-color: rgba(255, 107, 107, 0.1);
+                    }
+                    
+                    .date-quick-buttons {
+                        display: flex;
+                        gap: 8px;
+                        margin-left: auto;
+                    }
+                    
+                    .date-info {
+                        font-size: 14px;
+                        color: #666;
+                        margin-left: 10px;
+                        font-style: italic;
+                        align-self: center;
+                    }
+                    
+                    @media (max-width: 768px) {
+                        .date-selector {
+                            flex-direction: column;
+                            align-items: stretch;
+                            margin: 20px;
+                        }
+                        
+                        .date-select {
+                            max-width: none;
+                            width: 100%;
+                        }
+                        
+                        .date-quick-buttons {
+                            margin-left: 0;
+                            justify-content: center;
+                            margin-top: 10px;
+                            flex-wrap: wrap;
+                        }
+                        
+                        .date-info {
+                            margin-left: 0;
+                            margin-top: 10px;
+                            text-align: center;
+                        }
+                    }
+                `;
+                document.head.appendChild(style);
+            }
             
-            // 计算日期范围
-            const today = new Date();
-            const maxDate = getLocalDateString(today); // 今天
-            const minDate = new Date(today);
-            minDate.setDate(today.getDate() - 30); // 30天前
-            const minDateStr = getLocalDateString(minDate);
+            console.log('创建日期选择器，可用日期数量:', availableDates.length);
+            console.log('可用日期:', availableDates);
+            console.log('今天日期:', AppState.todayDate);
+            console.log('当前选中日期:', AppState.selectedDate);
             
-            console.log('日期范围:', {
-                min: minDateStr,
-                max: maxDate,
-                today: maxDate,
-                currentSelected: AppState.selectedDate
+            // 先找到今天的选项，确保选中
+            let todayIndex = -1;
+            
+            // 添加日期选项
+            availableDates.forEach((date, index) => {
+                // 验证日期格式
+                if (!isValidDateString(date)) {
+                    console.warn('跳过无效的日期格式:', date);
+                    return;
+                }
+                
+                const option = document.createElement('option');
+                option.value = date;
+                option.textContent = formatDateDisplay(date);
+                
+                // 如果是今天，添加特殊样式
+                if (date === AppState.todayDate) {
+                    option.classList.add('date-option-today');
+                    todayIndex = index;
+                    console.log('找到今天选项，索引:', todayIndex, '日期:', date);
+                }
+                
+                dateSelect.appendChild(option);
             });
             
-            dateInput.max = maxDate;
-            dateInput.min = minDateStr;
+            // 设置默认选中项
+            let selectedIndex = 0;
+            
+            // 优先选中今天
+            if (todayIndex !== -1) {
+                selectedIndex = todayIndex;
+                console.log('默认选中今天，索引:', selectedIndex);
+            } 
+            // 如果没有今天选项，尝试选中当前选中的日期
+            else if (AppState.selectedDate) {
+                const selectedDateIndex = availableDates.indexOf(AppState.selectedDate);
+                if (selectedDateIndex !== -1) {
+                    selectedIndex = selectedDateIndex;
+                    console.log('选中当前选择的日期，索引:', selectedIndex);
+                }
+            }
+            
+            // 设置选中项
+            dateSelect.selectedIndex = selectedIndex;
+            AppState.selectedDate = dateSelect.value;
+            
+            console.log('最终选择的日期:', AppState.selectedDate, '索引:', selectedIndex);
             
             // 日期变化事件
-            dateInput.addEventListener('change', async (e) => {
+            dateSelect.addEventListener('change', async (e) => {
                 const newDate = e.target.value;
-                if (newDate === AppState.selectedDate) return;
+                console.log('日期选择器变化，新日期:', newDate);
+                
+                if (newDate === AppState.selectedDate) {
+                    console.log('日期未变化，跳过');
+                    return;
+                }
                 
                 console.log('切换到日期:', newDate);
                 showLoading(true);
+
+                // 重置当前选择状态
+                resetToNoSelectionState();
                 
                 // 停止正在进行的操作
                 if (AppState.isRecording) stopRecording();
@@ -921,59 +1759,312 @@
                 // 更新日期
                 AppState.selectedDate = newDate;
                 
-                // 加载新日期的数据
-                await loadSentencesForSelectedDate();
-                renderSentenceList();
-                updateStats();
-                
-                // 重置当前句子
-                resetCurrentSentence();
-                
-                // 检查服务器文件
-                checkServerFilesInBackground();
-                
-                showLoading(false);
-                showStatus(`已切换到 ${AppState.selectedDate} 的数据`, 'info');
+                try {
+                    // 1. 尝试从缓存加载
+                    const cacheKey = `excel_cache_${newDate}`;
+                    const cached = localStorage.getItem(cacheKey);
+                    
+                    let sentences = null;
+                    
+                    if (cached) {
+                        try {
+                            const parsed = JSON.parse(cached);
+                            if (parsed && parsed.sentences) {
+                                sentences = parsed.sentences;
+                                console.log(`从缓存加载 ${newDate} 的句子:`, sentences.length);
+                            }
+                        } catch (parseError) {
+                            console.warn('解析缓存数据失败:', parseError);
+                        }
+                    }
+                    
+                    // 2. 如果没有缓存，从Excel加载
+                    if (!sentences) {
+                        console.log('缓存未命中，从Excel加载:', newDate);
+                        
+                        if (AppState.excelData) {
+                            sentences = getSentencesByDate(newDate);
+                        }
+                    }
+                    
+                    // 3. 更新句子列表
+                    if (sentences && sentences.length > 0) {
+                        AppState.sentences = sentences;
+                        console.log(`加载 ${newDate} 句子成功:`, sentences.length);
+                        
+                        // 检查本地录音状态
+                        await checkDateRecordings();
+                        
+                        // 渲染列表
+                        renderSentenceList();
+                        updateStats();
+                        
+                        showStatus(`已切换到 ${newDate} 的数据`, 'success');
+                        
+                    } else {
+                        // 检查是否是未来日期
+                        if (newDate > AppState.todayDate) {
+                            console.log(`${newDate} 是未来日期，创建空列表`);
+                            AppState.sentences = [];
+                            renderSentenceList();
+                            updateStats();
+                            
+                            showStatus(`${newDate} 是未来日期，可以提前准备录音`, 'info');
+                        } else {
+                            // 使用示例句子
+                            console.log(`${newDate} 没有数据，使用示例句子`);
+                            useFallbackSentences();
+                            renderSentenceList();
+                            updateStats();
+                            
+                            showStatus(`${newDate} 没有数据，使用示例句子`, 'info');
+                        }
+                    }
+                    
+                    // 4. 重置当前句子
+                    resetCurrentSentence();
+                    
+                    // 5. 检查服务器文件（如果不是未来日期）
+                    if (newDate <= AppState.todayDate) {
+                        setTimeout(() => {
+                            checkServerFilesInBackground();
+                        }, 300);
+                    }
+                    
+                    // 6. 更新日期信息显示
+                    updateDateInfo();
+                    
+                } catch (error) {
+                    console.error('切换日期失败:', error);
+                    showStatus('加载新日期数据失败', 'error');
+                    
+                    // 出错时使用后备句子
+                    useFallbackSentences();
+                    renderSentenceList();
+                    updateStats();
+                } finally {
+                    showLoading(false);
+                }
             });
             
             // 添加快捷按钮容器
             const quickButtons = document.createElement('div');
             quickButtons.className = 'date-quick-buttons';
             
+            // 重新加载按钮
+            const reloadBtn = document.createElement('button');
+            reloadBtn.textContent = '🔄 重新加载';
+            reloadBtn.className = 'btn btn-reload';
+            reloadBtn.title = '重新从Excel加载句子数据';
+            reloadBtn.onclick = async () => {
+                showLoading(true);
+                try {
+                    // 重新加载Excel数据
+                    const excelData = await loadExcelData();
+                    if (excelData) {
+                        AppState.excelData = excelData;
+                        
+                        // 重新加载当前日期的句子
+                        await reloadCurrentDateSentences();
+                        
+                        showStatus('数据已重新加载', 'success');
+                    } else {
+                        showStatus('重新加载失败', 'error');
+                    }
+                } catch (error) {
+                    console.error('重新加载失败:', error);
+                    showStatus('重新加载失败', 'error');
+                } finally {
+                    showLoading(false);
+                }
+            };
+            
             // 今天按钮
             const todayBtn = document.createElement('button');
             todayBtn.textContent = '今天';
             todayBtn.className = 'btn btn-today';
+            todayBtn.title = '切换到今天';
             todayBtn.onclick = () => {
-                const todayStr = getLocalDateString(new Date());
-                dateInput.value = todayStr;
-                dateInput.dispatchEvent(new Event('change'));
+                const todayStr = AppState.todayDate;
+                
+                // 检查今天是否在可选列表中
+                const optionExists = Array.from(dateSelect.options).some(opt => opt.value === todayStr);
+                
+                if (optionExists) {
+                    dateSelect.value = todayStr;
+                    dateSelect.dispatchEvent(new Event('change'));
+                } else {
+                    showStatus('今天没有数据，请选择其他日期', 'info');
+                }
             };
             
-            // 昨天按钮
-            const yesterdayBtn = document.createElement('button');
-            yesterdayBtn.textContent = '昨天';
-            yesterdayBtn.className = 'btn btn-yesterday';
-            yesterdayBtn.onclick = () => {
-                const yesterday = new Date();
-                yesterday.setDate(yesterday.getDate() - 1);
-                const yesterdayStr = getLocalDateString(yesterday);
-                dateInput.value = yesterdayStr;
-                dateInput.dispatchEvent(new Event('change'));
-            };
+            // 信息提示
+            const infoSpan = document.createElement('span');
+            infoSpan.className = 'date-info';
+            infoSpan.textContent = `当前: ${formatDateDisplay(AppState.selectedDate)}`;
+            infoSpan.style.cssText = 'font-size: 14px; color: #666; margin-left: 10px; font-style: italic;';
             
+            // 添加所有按钮
+            quickButtons.appendChild(reloadBtn);
             quickButtons.appendChild(todayBtn);
-            quickButtons.appendChild(yesterdayBtn);
             
             dateSelector.appendChild(label);
-            dateSelector.appendChild(dateInput);
+            dateSelector.appendChild(dateSelect);
             dateSelector.appendChild(quickButtons);
+            dateSelector.appendChild(infoSpan);
             
             // 插入到标题下面
             const header = document.querySelector('.header');
-            header.parentNode.insertBefore(dateSelector, header.nextSibling);
+            if (header) {
+                header.parentNode.insertBefore(dateSelector, header.nextSibling);
+                console.log('日期选择器已添加到页面');
+            } else {
+                console.error('找不到.header元素，无法添加日期选择器');
+            }
             
-            return dateInput;
+            return dateSelect;
+        }
+
+        // 格式化日期显示：今天显示"今天"，其他日期显示"日期 周几"
+        function formatDateDisplay(dateStr) {
+            if (!dateStr) return '';
+            
+            // 确保日期字符串是有效的
+            if (!isValidDateString(dateStr)) {
+                console.warn('无效的日期格式:', dateStr);
+                return dateStr;
+            }
+            
+            try {
+                const date = new Date(dateStr);
+                const now = new Date();
+                const todayStr = getLocalDateString(now);
+                
+                // 周几的映射
+                const weekDays = ['周日', '周一', '周二', '周三', '周四', '周五', '周六'];
+                const weekDay = weekDays[date.getDay()];
+                
+                // 如果是今天
+                if (dateStr === todayStr) {
+                    return `${dateStr} ${weekDay} (今天)`;
+                }
+                
+                // 其他情况只显示日期和周几
+                return `${dateStr} ${weekDay}`;
+            } catch (error) {
+                console.error('格式化日期时出错:', error, '日期字符串:', dateStr);
+                return dateStr;
+            }
+        }
+
+        // 新增函数：更新日期选择器
+        function updateDateSelector() {
+            const dateSelect = document.getElementById('datePicker');
+            if (!dateSelect) return;
+            
+            // 获取所有可用的日期
+            const availableDates = getAllAvailableDates();
+            
+            // 保存当前选中的值
+            const currentValue = dateSelect.value;
+            
+            // 清空选项
+            dateSelect.innerHTML = '';
+            
+            // 重新添加选项
+            availableDates.forEach(date => {
+                const option = document.createElement('option');
+                option.value = date;
+                option.textContent = formatDateDisplay(date);
+                
+                // 标记今天的日期
+                if (date === AppState.todayDate) {
+                    option.textContent += ' (今天)';
+                    option.classList.add('date-option-today');
+                }
+                
+                // 标记未来日期
+                if (date > AppState.todayDate) {
+                    option.textContent += ' (未来)';
+                    option.classList.add('date-option-future');
+                }
+                
+                dateSelect.appendChild(option);
+            });
+            
+            // 尝试恢复之前的选择，如果不存在则选择第一个
+            const optionExists = Array.from(dateSelect.options).some(opt => opt.value === currentValue);
+            if (optionExists) {
+                dateSelect.value = currentValue;
+            } else if (dateSelect.options.length > 0) {
+                dateSelect.selectedIndex = 0;
+            }
+        }
+
+        // 新增函数：重新加载当前日期的句子
+        async function reloadCurrentDateSentences() {
+            try {
+                console.log('重新加载当前日期句子:', AppState.selectedDate);
+                
+                let sentences = null;
+                
+                // 尝试从缓存加载
+                const cacheKey = `excel_cache_${AppState.selectedDate}`;
+                const cached = localStorage.getItem(cacheKey);
+                
+                if (cached) {
+                    const parsed = JSON.parse(cached);
+                    if (parsed && parsed.sentences) {
+                        sentences = parsed.sentences;
+                    }
+                }
+                
+                // 如果没有缓存，从Excel加载
+                if (!sentences && AppState.excelData) {
+                    sentences = getSentencesByDate(AppState.selectedDate);
+                }
+                
+                // 更新句子列表
+                if (sentences && sentences.length > 0) {
+                    AppState.sentences = sentences;
+                    
+                    // 检查本地录音状态
+                    await checkDateRecordings();
+                    
+                    renderSentenceList();
+                    updateStats();
+                    
+                    showStatus('句子数据已重新加载', 'success');
+                } else {
+                    // 检查是否是未来日期
+                    if (AppState.selectedDate > AppState.todayDate) {
+                        AppState.sentences = [];
+                        renderSentenceList();
+                        updateStats();
+                        
+                        showStatus('未来日期，可以提前准备录音', 'info');
+                    } else {
+                        useFallbackSentences();
+                        renderSentenceList();
+                        updateStats();
+                        
+                        showStatus('使用示例句子', 'info');
+                    }
+                }
+                
+            } catch (error) {
+                console.error('重新加载句子失败:', error);
+                showStatus('重新加载失败', 'error');
+            }
+        }
+
+
+        // 更新日期信息显示
+        function updateDateInfo() {
+            const infoElement = document.querySelector('.date-info');
+            if (infoElement) {
+                infoElement.textContent = `当前: ${AppState.selectedDate} | 句子: ${AppState.sentences.length}`;
+            }
         }
 
         // 保存当前状态
@@ -1045,11 +2136,12 @@
             saveSentencesForSelectedDate();
         }
 
-        // 检查今天是否有已录制的音频文件
+        // ==================== 修改检查本地录音状态的函数 ====================
         async function checkDateRecordings() {
-            console.log(`检查 ${AppState.selectedDate} 的本地录音文件`);
+            console.log(`检查 ${AppState.selectedDate} 的本地录音和上传状态`);
             
             for (const sentence of AppState.sentences) {
+                // 1. 检查本地录音
                 const audioKey = `audio_${AppState.selectedDate}_${sentence.id}`;
                 const audioData = localStorage.getItem(audioKey);
                 
@@ -1060,13 +2152,56 @@
                     sentence.recorded = false;
                     sentence.lastRecorded = null;
                 }
+                
+                // 2. 从缓存获取上传状态（优先）
+                const cachedUploadStatus = StateCache.getUploadStatus(AppState.selectedDate, sentence.id);
+                if (cachedUploadStatus !== null) {
+                    sentence.hasUploaded = cachedUploadStatus;
+                    console.log(`使用缓上传存状态: ${sentence.id} = ${cachedUploadStatus}`);
+                } else {
+                    // 缓存中没有，初始化为false
+                    sentence.hasUploaded = false;
+                }
             }
+            
+            // 3. 在后台查询服务器状态（如果需要）
+            if (shouldCheckServerStatus()) {
+                setTimeout(() => {
+                    checkServerFilesInBackground();
+                }, 1000);
+            }
+        }
+
+
+        // 判断是否需要检查服务器状态
+        function shouldCheckServerStatus() {
+            // 如果是今天或最近的日期，需要检查
+            if (AppState.selectedDate === AppState.todayDate) {
+                return true;
+            }
+            
+            // 如果是过去的日期，检查是否有缓存
+            const lastCheckedKey = `last_checked_${AppState.selectedDate}`;
+            const lastChecked = localStorage.getItem(lastCheckedKey);
+            
+            if (lastChecked) {
+                const lastCheckTime = parseInt(lastChecked, 10);
+                const now = Date.now();
+                // 如果24小时内检查过，跳过
+                if (now - lastCheckTime < 24 * 60 * 60 * 1000) {
+                    console.log(`日期 ${AppState.selectedDate} 24小时内已检查过，跳过`);
+                    return false;
+                }
+            }
+            
+            return true;
         }
 
         // 保存当前选择日期的句子数据
         function saveSentencesForSelectedDate() {
             const key = `sentences_${AppState.selectedDate}`;
             localStorage.setItem(key, JSON.stringify(AppState.sentences));
+            updateDateInfo(); // 添加这行
         }
 
         // 修复后的文件检查函数，支持多种格式
@@ -1080,7 +2215,7 @@
             // 按顺序检查各种格式
             for (const format of supportedFormats) {
                 const fileName = `${fileNameBase}.${format}`;
-                const filePath = `recordings/${AppState.selectedDate}/${fileName}`;
+                const filePath = `${GITEE_CONFIG.RECORDINGS_DIR}/${AppState.selectedDate}/${fileName}`;
                 
                 console.log(`尝试检查格式: ${format}, 路径: ${filePath}`);
                 
@@ -1110,7 +2245,7 @@
             // 按顺序检查各种格式
             for (const format of supportedFormats) {
                 const fileName = `${fileNameBase}.${format}`;
-                const filePath = `recordings/${AppState.selectedDate}/${fileName}`;
+                const filePath = `${GITEE_CONFIG.RECORDINGS_DIR}/${AppState.selectedDate}/${fileName}`;
                 
                 console.log(`尝试检查格式: ${format}, 路径: ${filePath}`);
                 
@@ -1132,15 +2267,26 @@
             return false;
         }
 
-        
+
         async function checkServerFilesInBackground() {
             console.log(`开始在后台检查 ${AppState.selectedDate} 的服务器状态...`);
             
+            // 记录检查时间
+            const lastCheckedKey = `last_checked_${AppState.selectedDate}`;
+            localStorage.setItem(lastCheckedKey, Date.now().toString());
+            
             try {
                 let updatedCount = 0;
+                const uploadStatusMap = {};
                 
                 for (let i = 0; i < AppState.sentences.length; i++) {
                     const sentence = AppState.sentences[i];
+                    
+                    // 跳过已确定状态的句子（除非需要重新验证）
+                    if (sentence.hasUploaded === true) {
+                        uploadStatusMap[sentence.id] = true;
+                        continue;
+                    }
                     
                     try {
                         const fileExists = await checkFileExistsOnServer(sentence.id);
@@ -1148,18 +2294,27 @@
                         
                         if (fileExists !== sentence.hasUploaded) {
                             sentence.hasUploaded = fileExists;
+                            uploadStatusMap[sentence.id] = fileExists;
                             updatedCount++;
                             
                             console.log(`句子 ${sentence.id} 状态变化: ${wasUploaded} -> ${fileExists}`);
                             
-                            // 更新UI
+                            // 立即更新UI
                             updateSentenceItemInUI(sentence);
+                        } else {
+                            uploadStatusMap[sentence.id] = sentence.hasUploaded;
                         }
+                        
+                        // 记录状态（无论是否变化都记录）
+                        StateCache.setUploadStatus(AppState.selectedDate, sentence.id, sentence.hasUploaded);
                         
                     } catch (error) {
                         console.warn(`检查句子 ${sentence.id} 失败:`, error);
                     }
                 }
+                
+                // 批量缓存所有句子的状态
+                StateCache.batchSetUploadStatus(AppState.selectedDate, uploadStatusMap);
                 
                 // 保存更新后的状态
                 saveSentencesForSelectedDate();
@@ -1287,6 +2442,7 @@
                 let statusText = '待录制';
                 let prefix = '';
                 
+                // 优先使用缓存的上传状态
                 if (sentence.hasUploaded) {
                     statusClass = 'status-uploaded';
                     statusText = '✓ 已上传';
@@ -1310,6 +2466,7 @@
                 elements.sentencesContainer.appendChild(item);
             });
             
+            updateDateInfo();
             console.log('句子列表渲染完成');
         }
 
@@ -1324,7 +2481,7 @@
             // 按顺序尝试下载各种格式
             for (const format of supportedFormats) {
                 const fileName = `${fileNameBase}.${format}`;
-                const filePath = `recordings/${AppState.selectedDate}/${fileName}`;
+                const filePath = `${GITEE_CONFIG.RECORDINGS_DIR}/${AppState.selectedDate}/${fileName}`;
                 
                 console.log(`尝试下载格式: ${format}`);
                 
@@ -1426,7 +2583,7 @@
         }
 
         function selectSentence(sentence) {
-            console.log('选择句子:', sentence.id);
+            console.log('选择句子:', sentence?.id);
             
             if (!sentence) return;
             
@@ -1453,10 +2610,9 @@
             elements.currentSentenceText.textContent = sentence.text;
             elements.timer.textContent = '00:00';
             elements.progressFill.style.width = '0%';
-            elements.recordBtn.disabled = false;
-            elements.stopBtn.disabled = true;
-            elements.playBtn.disabled = true;
-            elements.uploadBtn.disabled = true;
+            
+            // 更新按钮状态
+            updateButtonStatesForSelectedSentence(sentence);
             
             // 准备音频
             console.log('准备新句子的音频...');
@@ -1466,13 +2622,40 @@
                 autoPreparePlayback(sentence.id);
             } else {
                 console.log('选择的是未上传的句子，检查本地录音');
-                checkExistingRecording(sentence.id, true);
+                checkExistingRecording(sentence.id, false);
             }
             
             // 更新列表激活状态
             setTimeout(() => {
                 updateActiveSentenceInList(sentence.id);
             }, 50);
+        }
+
+        // 添加按钮状态更新函数
+        function updateButtonStatesForSelectedSentence(sentence) {
+            console.log('更新按钮状态，句子:', sentence.id);
+            
+            // 录音按钮始终可用（开始新的录音）
+            elements.recordBtn.disabled = false;
+            elements.recordBtn.innerHTML = '<span>🎤 开始录音</span>';
+            
+            // 停止录音按钮禁用（尚未开始录音）
+            elements.stopBtn.disabled = true;
+            elements.stopBtn.innerHTML = '<span>⏹️ 停止录音</span>';
+            
+            // 播放和上传按钮初始状态为禁用
+            elements.playBtn.disabled = true;
+            elements.playBtn.innerHTML = '<span>▶️ 播放录音</span>';
+            elements.playBtn.classList.remove('playing');
+            
+            elements.uploadBtn.disabled = true;
+            
+            // 根据句子状态设置上传按钮文本
+            if (sentence.hasUploaded) {
+                elements.uploadBtn.innerHTML = '<span>📤 重新上传</span>';
+            } else {
+                elements.uploadBtn.innerHTML = '<span>📤 上传到服务器</span>';
+            }
         }
 
         // 更新列表激活状态
@@ -1553,7 +2736,7 @@
             
             for (const format of supportedFormats) {
                 const fileName = `${fileNameBase}.${format}`;
-                const filePath = `recordings/${AppState.selectedDate}/${fileName}`;
+                const filePath = `${GITEE_CONFIG.RECORDINGS_DIR}/${AppState.selectedDate}/${fileName}`;
                 
                 try {
                     const response = await fetch(
@@ -1694,11 +2877,17 @@
             
             const sentence = AppState.sentences.find(s => s.id === sentenceId);
             
-            if (sentence && sentence.hasUploaded) {
+            if (!sentence) {
+                console.error('找不到句子:', sentenceId);
+                return;
+            }
+            
+            if (sentence.hasUploaded) {
                 console.log('句子已上传，跳过本地检查');
+                // 即使已上传，播放按钮也要等下载完成后才启用
                 elements.playBtn.disabled = true;
                 elements.uploadBtn.disabled = false;
-                elements.uploadBtn.textContent = '📤 重新上传';
+                elements.uploadBtn.innerHTML = '<span>📤 重新上传</span>';
                 return;
             }
             
@@ -1720,9 +2909,11 @@
                     
                     if (AppState.audioBlob && AppState.audioBlob.size > 0) {
                         console.log('本地音频加载成功，大小:', AppState.audioBlob.size, 'bytes');
+                        
+                        // 启用播放和上传按钮
                         elements.playBtn.disabled = false;
                         elements.uploadBtn.disabled = false;
-                        elements.uploadBtn.textContent = '📤 上传到服务器';
+                        elements.uploadBtn.innerHTML = '<span>📤 上传到服务器</span>';
                         
                         if (autoPlay && !AppState.isRecording) {
                             setTimeout(() => {
@@ -1731,6 +2922,9 @@
                         }
                     } else {
                         console.error('音频Blob创建失败或大小为0');
+                        // 保持按钮禁用状态
+                        elements.playBtn.disabled = true;
+                        elements.uploadBtn.disabled = true;
                     }
                 } catch (error) {
                     console.error('加载本地录音失败:', error);
@@ -1741,8 +2935,15 @@
                 }
             } else {
                 console.log('没有找到本地录音');
+                // 没有录音，禁用播放按钮
                 elements.playBtn.disabled = true;
-                elements.uploadBtn.disabled = true;
+                
+                // 如果有当前录音，启用上传按钮，否则禁用
+                if (AppState.audioBlob) {
+                    elements.uploadBtn.disabled = false;
+                } else {
+                    elements.uploadBtn.disabled = true;
+                }
             }
         }
 
@@ -1771,9 +2972,14 @@
         // ==================== 录音功能 ====================
         async function startRecording() {
             try {
-                console.log('开始录音...');
-                console.log('使用的音频格式:', AppState.audioConfig.recordingMimeType);
+                // 首先检查是否有选中的句子
+                if (!AppState.currentSentence) {
+                    showStatus('请先选择一个句子！', 'error');
+                    return;
+                }
                 
+                console.log('开始录音，句子:', AppState.currentSentence.id);
+                console.log('使用的音频格式:', AppState.audioConfig.recordingMimeType);
                 // 停止正在播放的录音
                 if (AppState.isPlaying) {
                     console.log('检测到正在播放录音，先停止播放');
@@ -2329,7 +3535,7 @@
                 // 遍历所有支持的格式
                 for (const format of supportedFormats) {
                     const fileName = `${fileNameBase}.${format}`;
-                    const filePath = `recordings/${AppState.selectedDate}/${fileName}`;
+                    const filePath = `${GITEE_CONFIG.RECORDINGS_DIR}/${AppState.selectedDate}/${fileName}`;
                     
                     try {
                         // 检查文件是否存在
@@ -2426,7 +3632,7 @@
                 
                 // 3. 统一使用这种命名格式：日期_句子ID.扩展名
                 const fileName = `${AppState.selectedDate}_${AppState.currentSentence.id}.${extension}`;
-                const filePath = `recordings/${AppState.selectedDate}/${fileName}`;
+                const filePath = `${GITEE_CONFIG.RECORDINGS_DIR}/${AppState.selectedDate}/${fileName}`;
                 
                 console.log('上传文件信息:', {
                     fileName: fileName,
@@ -2482,11 +3688,14 @@
                     AppState.currentSentence.hasUploaded = true;
                     AppState.currentSentence.uploadedAt = new Date().toISOString();
                     
-                    // 7. 更新按钮状态
+                    // 7. 立即缓存上传状态（重要！）
+                    StateCache.setUploadStatus(AppState.selectedDate, AppState.currentSentence.id, true);
+                    
+                    // 8. 更新按钮状态
                     elements.uploadBtn.textContent = '📤 重新上传';
                     elements.uploadBtn.disabled = false;
                     
-                    // 8. 保存状态并更新UI
+                    // 9. 保存状态并更新UI
                     saveSentencesForSelectedDate();
                     updateSentenceItemInUI(AppState.currentSentence);
                     updateStats();
@@ -2829,14 +4038,29 @@
 
         // ==================== 事件监听器 ====================
         function setupEventListeners() {
-            elements.recordBtn.addEventListener('click', startRecording);
+            elements.recordBtn.addEventListener('click', () => {
+                // 检查是否有选中的句子
+                if (!AppState.currentSentence) {
+                    showStatus('请先从左侧选择一个句子', 'error');
+                    return;
+                }
+                startRecording();
+            });
+            
             elements.stopBtn.addEventListener('click', stopRecording);
             elements.uploadBtn.addEventListener('click', uploadToGitee);
-            elements.playBtn.addEventListener('click', playRecording);
+            elements.playBtn.addEventListener('click', () => {
+                // 检查是否有选中的句子
+                if (!AppState.currentSentence) {
+                    showStatus('请先从左侧选择一个句子', 'error');
+                    return;
+                }
+                playRecording();
+            });
             
             // 键盘快捷键
             document.addEventListener('keydown', (e) => {
-                if (e.code === 'Space' && !e.target.matches('input, textarea')) {
+                if (e.code === 'Space' && !e.target.matches('input, textarea, select')) {
                     e.preventDefault();
                     
                     if (AppState.isPlaying) stopPlayback();
@@ -2859,10 +4083,33 @@
                         selectSentence(AppState.sentences[num - 1]);
                     }
                 }
+                
+                // 日期导航快捷键
+                if (e.code === 'ArrowLeft' && e.altKey) {
+                    e.preventDefault();
+                    navigateDate(-1);
+                } else if (e.code === 'ArrowRight' && e.altKey) {
+                    e.preventDefault();
+                    navigateDate(1);
+                }
             });
             
             // 初始化波形显示
             updateWaveform();
+        }
+
+        // 修改日期导航逻辑，适应新的日期选择器
+        function navigateDate(offset) {
+            const dateSelect = document.getElementById('datePicker');
+            if (!dateSelect) return;
+            
+            const currentIndex = dateSelect.selectedIndex;
+            const newIndex = currentIndex + offset;
+            
+            if (newIndex >= 0 && newIndex < dateSelect.options.length) {
+                dateSelect.selectedIndex = newIndex;
+                dateSelect.dispatchEvent(new Event('change'));
+            }
         }
 
         // ==================== 启动应用 ====================
