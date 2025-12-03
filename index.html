@@ -901,20 +901,11 @@
                     }, 100);
                     
                 } else {
-                    // 检查是否是未来日期
-                    if (AppState.selectedDate > AppState.todayDate) {
-                        console.log('未来日期，创建空列表');
-                        AppState.sentences = [];
-                        renderSentenceList();
-                        updateStats();
-                        showStatus('未来日期，可以提前准备录音', 'info');
-                    } else {
-                        console.log('当前日期没有句子数据，使用示例句子');
-                        useFallbackSentences();
-                        renderSentenceList();
-                        updateStats();
-                        showStatus('当前日期没有数据，使用示例句子', 'info');
-                    }
+                    console.log('当前日期没有句子数据，使用示例句子');
+                    useFallbackSentences();
+                    renderSentenceList();
+                    updateStats();
+                    showStatus('当前日期还未布置作业', 'info');
                 }
                 
             } catch (error) {
@@ -1313,7 +1304,7 @@
                     AppState.audioConfig.playableFormat = 'audio/wav';
                 }
                 
-                showStatus('检测到苹果设备，已启用兼容模式', 'info');
+                // showStatus('检测到苹果设备，已启用兼容模式', 'info');
                 return true;
             }
             return false;
@@ -1804,23 +1795,12 @@
                         // showStatus(`已切换到 ${newDate} 的数据`, 'success');
                         
                     } else {
-                        // 检查是否是未来日期
-                        if (newDate > AppState.todayDate) {
-                            console.log(`${newDate} 是未来日期，创建空列表`);
-                            AppState.sentences = [];
-                            renderSentenceList();
-                            updateStats();
-                            
-                            showStatus(`${newDate} 是未来日期，可以提前准备录音`, 'info');
-                        } else {
-                            // 使用示例句子
-                            console.log(`${newDate} 没有数据，使用示例句子`);
-                            useFallbackSentences();
-                            renderSentenceList();
-                            updateStats();
-                            
-                            showStatus(`${newDate} 没有数据，使用示例句子`, 'info');
-                        }
+                        // 使用示例句子
+                        console.log(`${newDate} 没有数据，使用示例句子`);
+                        useFallbackSentences();
+                        renderSentenceList();
+                        updateStats();
+                        showStatus(`${newDate} 还未布置作业`, 'info');
                     }
                     
                     // 4. 重置当前句子
@@ -1896,7 +1876,7 @@
                     dateSelect.value = todayStr;
                     dateSelect.dispatchEvent(new Event('change'));
                 } else {
-                    showStatus('今天没有数据，请选择其他日期', 'info');
+                    showStatus('今天还未布置作业，请选择其他日期', 'info');
                 }
             };
             
@@ -2038,20 +2018,11 @@
                     
                     showStatus('句子数据已重新加载', 'success');
                 } else {
-                    // 检查是否是未来日期
-                    if (AppState.selectedDate > AppState.todayDate) {
-                        AppState.sentences = [];
-                        renderSentenceList();
-                        updateStats();
-                        
-                        showStatus('未来日期，可以提前准备录音', 'info');
-                    } else {
-                        useFallbackSentences();
-                        renderSentenceList();
-                        updateStats();
-                        
-                        showStatus('使用示例句子', 'info');
-                    }
+                    useFallbackSentences();
+                    renderSentenceList();
+                    updateStats();
+                    
+                    showStatus('使用示例句子', 'info');
                 }
                 
             } catch (error) {
@@ -2325,10 +2296,6 @@
                 updateStats();
                 
                 console.log(`后台检查完成，更新了 ${updatedCount} 条记录`);
-                
-                if (updatedCount > 0) {
-                    showStatus(`发现 ${updatedCount} 个已上传文件`, 'success');
-                }
                 
             } catch (error) {
                 console.error('后台检查出错:', error);
@@ -3108,7 +3075,7 @@
                 
                 if (shouldAutoUpload) {
                     console.log('第一次录制，自动上传到服务器');
-                    showStatus('正在自动上传到服务器...', 'info');
+                    // showStatus('正在自动上传到服务器...', 'info');
                     
                     // 延迟一点开始上传，确保本地保存完成
                     setTimeout(() => {
